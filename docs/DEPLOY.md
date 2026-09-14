@@ -61,3 +61,20 @@ git push -u origin main
 - Web app loads, sign-in works, the dashboard shows your contacts.
 - Import page → "Sync now" on a linked sheet finishes; the server log shows `[sync]` lines every `SHEET_SYNC_MINUTES`.
 - Reminders bell: allow notifications once; push needs the VAPID keys on the API.
+
+## Speed
+
+Measured from India against a Render **free** instance in Oregon, the dashboard took about 2 s and busy
+moments queued requests for 8 s or more. What helps, most effective first:
+
+1. **Instance type: Starter, not Free.** Free gives a tenth of a CPU and sleeps after 15 min idle; every
+   request then waits behind the sheet sync or the next report capture. Starter removes both problems.
+2. **Region: US East (Ohio / Virginia).** Atlas and the team are on the East Coast; Oregon adds a round
+   trip to every one of the ~15 queries a dashboard load makes. Render cannot move a service, so create a
+   new one in the right region and point Netlify's `NEXT_PUBLIC_API_BASE` at it.
+3. **`SHEET_SYNC_MINUTES=30`** on the API. Each cycle downloads and parses all 11 linked workbooks; at 1 or
+   5 minutes that is a permanent background load on a small instance (Google throttles it too).
+4. The code side is done: dashboard stats, meta, and daily reports are memoised for 10-60 s and shared
+   by every open tab, "recent activity" only unwinds the 150 most recently touched contacts, history
+   entries are indexed by time, and pages poll once a minute instead of every 15-30 s (a tab that regains
+   focus refreshes immediately regardless).

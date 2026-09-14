@@ -18,7 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { PriorityBadge } from '@/components/badges';
 import { ReminderActions } from '@/components/reminders/reminder-actions';
 
-const POLL_MS = 30_000;
+const POLL_MS = 60_000;
 const NOTIFY_KEY = 'crm:notify';
 
 // The notification preference (localStorage) and the browser permission live outside React;

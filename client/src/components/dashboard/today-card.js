@@ -17,7 +17,7 @@ const MAX = 7;
  * so the first thing on the dashboard is the list of people to call now.
  */
 export function TodayCard({ followUps }) {
-  const { data: due } = useQuery({ queryKey: qk.remindersDue, queryFn: api.reminders.due, refetchInterval: 15_000 });
+  const { data: due } = useQuery({ queryKey: qk.remindersDue, queryFn: api.reminders.due, refetchInterval: 60_000 });
   const reminders = (due?.items || []).map((r) => ({
     key: `r-${r._id}`,
     kind: 'reminder',

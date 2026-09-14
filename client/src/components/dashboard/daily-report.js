@@ -402,21 +402,21 @@ export function DailyReport() {
   const isToday = day === today;
   const rangeIsLive = to === today;
 
-  const { data: hist } = useQuery({ queryKey: qk.dailyHistory(HISTORY_DAYS), queryFn: () => api.dailyHistory(HISTORY_DAYS), refetchInterval: 60_000 });
+  const { data: hist } = useQuery({ queryKey: qk.dailyHistory(HISTORY_DAYS), queryFn: () => api.dailyHistory(HISTORY_DAYS), refetchInterval: 5 * 60_000, staleTime: 60_000 });
   const dayQuery = useQuery({
     queryKey: qk.dailyReport(day),
     queryFn: () => api.dailyReport(day),
     enabled: mode === 'day',
-    refetchInterval: isToday ? 30_000 : false,
-    staleTime: isToday ? 0 : 5 * 60_000,
+    refetchInterval: isToday ? 60_000 : false,
+    staleTime: isToday ? 20_000 : 5 * 60_000,
     placeholderData: (prev) => prev,
   });
   const rangeQuery = useQuery({
     queryKey: qk.dailyRange(from, to),
     queryFn: () => api.dailyRange(from, to),
     enabled: mode === 'range',
-    refetchInterval: rangeIsLive ? 60_000 : false,
-    staleTime: rangeIsLive ? 0 : 5 * 60_000,
+    refetchInterval: rangeIsLive ? 2 * 60_000 : false,
+    staleTime: rangeIsLive ? 60_000 : 5 * 60_000,
     placeholderData: (prev) => prev,
   });
   const days = useMemo(() => hist?.days || [], [hist]);

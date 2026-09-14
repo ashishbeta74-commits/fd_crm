@@ -128,6 +128,8 @@ ContactSchema.index({ 'source.sheetName': 1 });
 ContactSchema.index({ 'source.batchId': 1 });
 ContactSchema.index({ importBatchIds: 1 });
 ContactSchema.index({ updatedAt: -1 });
+// Daily progress reports and "recent activity" pick history entries by time.
+ContactSchema.index({ 'activities.at': -1 });
 ContactSchema.index({ 'linkedin.stage': 1 });
 ContactSchema.index({ 'linkedin.nextActionDate': 1 });
 ContactSchema.index({ 'linkedin.lastTouchAt': -1 });

@@ -23,7 +23,7 @@ import { TodayCard } from '@/components/dashboard/today-card';
 import { DailyReport } from '@/components/dashboard/daily-report';
 import { TIME_ZONE, zonedParts } from '@/lib/tz';
 
-const REFETCH_MS = 15000;
+const REFETCH_MS = 60_000;
 // Champagne buttons on the dark hero, like "Reserve" on the site.
 const HERO_BUTTON = 'bg-brand-champagne text-brand-espresso hover:bg-brand-gold-bright dark:bg-brand-champagne dark:text-brand-espresso dark:hover:bg-brand-gold-bright';
 // Stages that mean the contact was reached at least once (Connected and everything past it).

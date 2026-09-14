@@ -214,7 +214,9 @@ export const api = {
 };
 
 // How often list / dashboard queries re-fetch while their page is open, so changes made by teammates show up.
-export const LIVE_MS = 30_000;
+// Pages poll at this pace while open; a tab that regains focus refreshes at once anyway (see providers.js).
+// A minute keeps a hosted API on a small instance responsive for everyone.
+export const LIVE_MS = 60_000;
 
 // React Query keys, shared so mutations can invalidate the right lists.
 export const qk = {
