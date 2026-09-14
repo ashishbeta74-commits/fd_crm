@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { HttpError } from '../lib/errors.js';
-import { generatePassword, hashPassword, publicUser, requireAdmin, signToken, verifyPassword } from '../lib/auth.js';
+import { bustUser, generatePassword, hashPassword, publicUser, requireAdmin, signToken, verifyPassword } from '../lib/auth.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { User } from '../models/User.js';
 
@@ -48,6 +48,7 @@ authRouter.post('/change-password', async (req, res) => {
   user.passwordHash = hashPassword(newPassword);
   user.passwordChangedAt = new Date(); // invalidates every other session of this user
   await user.save();
+  bustUser(user._id);
   res.json({ token: signToken(user), user: publicUser(user) });
 });
 
@@ -64,6 +65,7 @@ authRouter.post('/users/:id/reset-password', requireAdmin, async (req, res) => {
   user.passwordHash = hashPassword(password);
   user.passwordChangedAt = new Date();
   await user.save();
+  bustUser(user._id);
   res.json({ user: publicUser(user), password });
 });
 
@@ -75,5 +77,6 @@ authRouter.patch('/users/:id', requireAdmin, async (req, res) => {
   if (body.active !== undefined) user.active = body.active;
   if (body.displayName !== undefined) user.displayName = body.displayName;
   await user.save();
+  bustUser(user._id);
   res.json({ user: publicUser(user) });
 });

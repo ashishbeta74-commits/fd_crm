@@ -4,6 +4,10 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { Setting, User } from '../models/User.js';
 import { HttpError } from './errors.js';
+import { bust, memo } from './cache.js';
+
+/** Forget the cached record of one user (or of everyone) so a password change / deactivation applies on the next request. */
+export const bustUser = (id) => bust(id ? `user:${id}` : 'user:');
 
 const TOKEN_DAYS = 30;
 let secret = '';
@@ -90,7 +94,9 @@ export async function requireAuth(req, res, next) {
     }
     const data = parseToken(token);
     if (!data) throw new HttpError(401, 'Your session has expired - please sign in again');
-    const user = await User.findById(data.sub).lean();
+    // One user lookup per 30 s per person, not per request: the database can be a continent away.
+    // Password changes and deactivation clear the entry at once (bustUser in routes/auth.js).
+    const user = await memo(`user:${data.sub}`, 30_000, () => User.findById(data.sub).lean());
     const version = user?.passwordChangedAt ? new Date(user.passwordChangedAt).getTime() : 0;
     if (!user || !user.active || version !== data.v) throw new HttpError(401, 'Your session is no longer valid - please sign in again');
     req.user = user;

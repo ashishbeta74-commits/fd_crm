@@ -69,12 +69,16 @@ moments queued requests for 8 s or more. What helps, most effective first:
 
 1. **Instance type: Starter, not Free.** Free gives a tenth of a CPU and sleeps after 15 min idle; every
    request then waits behind the sheet sync or the next report capture. Starter removes both problems.
-2. **Region: US East (Ohio / Virginia).** Atlas and the team are on the East Coast; Oregon adds a round
-   trip to every one of the ~15 queries a dashboard load makes. Render cannot move a service, so create a
-   new one in the right region and point Netlify's `NEXT_PUBLIC_API_BASE` at it.
+2. **Region: Singapore.** The Atlas cluster (`crm.ajxxnnz`) is in **Mumbai** and the team works from India.
+   From Oregon every one of the ~15 queries a dashboard load makes crosses the Pacific twice: a bare
+   `/api/health` (one ping) measured 0.55 s. Render cannot move a service, so create a new Web Service in
+   Singapore with the same settings and variables, check its `/api/health`, then point Netlify's
+   `NEXT_PUBLIC_API_BASE` at the new URL and delete the Oregon one. (If the cluster ever moves to the US,
+   move the API with it: the two must sit in the same part of the world.)
 3. **`SHEET_SYNC_MINUTES=30`** on the API. Each cycle downloads and parses all 11 linked workbooks; at 1 or
    5 minutes that is a permanent background load on a small instance (Google throttles it too).
 4. The code side is done: dashboard stats, meta, and daily reports are memoised for 10-60 s and shared
    by every open tab, "recent activity" only unwinds the 150 most recently touched contacts, history
-   entries are indexed by time, and pages poll once a minute instead of every 15-30 s (a tab that regains
-   focus refreshes immediately regardless).
+   entries are indexed by time, the per-request user lookup behind the session token is cached for 30 s,
+   and pages poll once a minute instead of every 15-30 s (a tab that regains focus refreshes immediately
+   regardless).
