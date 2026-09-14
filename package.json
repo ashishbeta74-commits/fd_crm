@@ -1,0 +1,30 @@
+{
+  "name": "crm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lead / contact CRM with Excel import - Next.js + Node.js + MongoDB",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail -n db,api,web -c cyan,green,magenta \"npm run db -w server\" \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev:app": "concurrently --kill-others-on-fail -n api,web -c green,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "db": "npm run db -w server",
+    "server": "npm run dev -w server",
+    "client": "npm run dev -w client",
+    "sample": "npm run sample -w server",
+    "build": "npm run build -w client",
+    "start": "concurrently --kill-others-on-fail -n db,api,web -c cyan,green,magenta \"npm run db -w server\" \"npm run start -w server\" \"npm run start -w client\"",
+    "lint": "npm run lint -w client"
+  },
+  "allowScripts": {
+    "mongodb-memory-server": true,
+    "@tailwindcss/oxide": true,
+    "unrs-resolver": true,
+    "sharp": true
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

@@ -1,0 +1,195 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* shadcn/ui theme tokens, tinted to the Famous Drive brand (famousdrive.com): espresso and camel browns,
+   champagne gold accents, Outfit for text and Cormorant for headings. */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.625rem;
+  /* brand palette */
+  --brand-espresso: #2a1e12;
+  --brand-saddle: #3b2a1b;
+  --brand-camel: #6f5640;
+  --brand-gold: #d9ae74;
+  --brand-gold-bright: #ecc58f;
+  --brand-gold-deep: #b4874a;
+  --brand-champagne: #f5e9d0;
+
+  --background: #fbf8f2;
+  --foreground: #2a1e12;
+  --card: #ffffff;
+  --card-foreground: #2a1e12;
+  --popover: #ffffff;
+  --popover-foreground: #2a1e12;
+  --primary: #3b2a1b;
+  --primary-foreground: #f5e9d0;
+  --secondary: #f1e8d8;
+  --secondary-foreground: #3b2a1b;
+  --muted: #f3ecdf;
+  --muted-foreground: #7a6552;
+  --accent: #f3e6ce;
+  --accent-foreground: #3b2a1b;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #e6dbc8;
+  --input: #e6dbc8;
+  --ring: #d9ae74;
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: #f6f0e4;
+  --sidebar-foreground: #2a1e12;
+  --sidebar-primary: #3b2a1b;
+  --sidebar-primary-foreground: #f5e9d0;
+  --sidebar-accent: #eedfc2;
+  --sidebar-accent-foreground: #2a1e12;
+  --sidebar-border: #e6dbc8;
+  --sidebar-ring: #d9ae74;
+}
+
+.dark {
+  --background: #1f1812;
+  --foreground: #f3e9d8;
+  --card: #2a1e12;
+  --card-foreground: #f3e9d8;
+  --popover: #2a1e12;
+  --popover-foreground: #f3e9d8;
+  --primary: #d9ae74;
+  --primary-foreground: #241a11;
+  --secondary: #3b2a1b;
+  --secondary-foreground: #f3e9d8;
+  --muted: #3b2a1b;
+  --muted-foreground: #c2ae93;
+  --accent: #4d3826;
+  --accent-foreground: #f3e9d8;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 15%);
+  --ring: #d9ae74;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: #241a11;
+  --sidebar-foreground: #f3e9d8;
+  --sidebar-primary: #d9ae74;
+  --sidebar-primary-foreground: #241a11;
+  --sidebar-accent: #3b2a1b;
+  --sidebar-accent-foreground: #f3e9d8;
+  --sidebar-border: rgb(255 255 255 / 10%);
+  --sidebar-ring: #d9ae74;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-brand-espresso: var(--brand-espresso);
+  --color-brand-saddle: var(--brand-saddle);
+  --color-brand-camel: var(--brand-camel);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-bright: var(--brand-gold-bright);
+  --color-brand-gold-deep: var(--brand-gold-deep);
+  --color-brand-champagne: var(--brand-champagne);
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-cormorant), Georgia, 'Times New Roman', serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+/* Small-caps eyebrow line used on the site ("TRANSPORTATION SOLUTIONS · NYC & WORLDWIDE"). */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /* No grey flash on tap for touch devices; the controls have their own pressed states. */
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  /* Consistent keyboard focus for plain links/buttons. shadcn controls opt out via
+     `outline-none` (utilities layer wins) and draw their own focus-visible ring. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::selection {
+    @apply bg-primary/20;
+  }
+}
+
+/* Smooth in-page scrolling only for people who have not opted out of motion. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Reduced motion: collapse every animation and transition to (near) zero. The tiny non-zero
+   duration keeps animationend/transitionend firing, so Radix exit animations and
+   tw-animate-css states still resolve; spinners simply render as static icons. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* branded loading screen: the bar slides across */
+@keyframes loading-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
