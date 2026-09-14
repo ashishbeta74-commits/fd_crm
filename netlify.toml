@@ -4,6 +4,8 @@
 [build]
   base = "client"
   command = "npm run build"
+  # Relative to `base`. A UI value of "client/.next" would resolve to client/client/.next and fail.
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "22"
