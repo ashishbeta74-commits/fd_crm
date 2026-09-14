@@ -1,0 +1,13 @@
+# Netlify hosts the Next.js web app (the `client` workspace). The Express API in `server` needs a
+# long-lived Node process (sheet syncs, push reminders, the daily-report capture, MongoDB) and runs
+# elsewhere - see docs/DEPLOY.md. Point the web app at it with NEXT_PUBLIC_API_BASE in the Netlify UI.
+[build]
+  base = "client"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # The web app has no need for the embedded MongoDB binary that the server workspace would pull in.
+  MONGOMS_DISABLE_POSTINSTALL = "1"
+
+# The Next.js runtime (@netlify/plugin-nextjs) is added by Netlify automatically for Next.js sites.

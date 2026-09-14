@@ -1,7 +1,16 @@
 node_modules
 .next
+.netlify
 dist
 .data
 .env
+.env.*
+!.env.example
 *.log
 conversation-*.txt
+# generated at first start; holds the team's first passwords
+server/initial-passwords.txt
+# Google service-account key, if one is used for private sheets
+server/*.json
+!server/package.json
+!server/sheets.json
