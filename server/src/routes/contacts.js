@@ -37,8 +37,9 @@ export const listQuery = z.object({
   booking: z.enum(['any', 'upcoming', 'none']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(500).default(25),
-  sort: z.enum(SORT_FIELDS).default('updatedAt'),
-  dir: z.enum(['asc', 'desc']).default('desc'),
+  // sheet (insertion) order by default: stable while the team works the list (see client contact-filters.js)
+  sort: z.enum(SORT_FIELDS).default('createdAt'),
+  dir: z.enum(['asc', 'desc']).default('asc'),
 });
 
 const csv = (s) => String(s).split(',').map((x) => x.trim()).filter(Boolean);

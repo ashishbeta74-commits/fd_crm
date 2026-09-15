@@ -21,8 +21,9 @@ export function cleanParams(params) {
   const out = {};
   for (const [k, v] of Object.entries(params || {})) {
     if (v === undefined || v === null || v === '') continue;
-    if (k === 'sort' && v === 'updatedAt') continue;
-    if (k === 'dir' && v === 'desc') continue;
+    // the list's defaults (sheet order) need not be stored
+    if (k === 'sort' && v === 'createdAt') continue;
+    if (k === 'dir' && v === 'asc') continue;
     out[k] = v;
   }
   return out;

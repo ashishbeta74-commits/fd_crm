@@ -5,8 +5,11 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 export const PAGE_SIZES = [25, 50, 100];
 export const DEFAULT_LIMIT = 25;
-export const DEFAULT_SORT = 'updatedAt';
-export const DEFAULT_DIR = 'desc';
+// Default order = the order contacts were added, i.e. the calling sheet's row order. It never changes
+// while someone works the list: logging a call or moving a stage used to bump the row to the top
+// (the old default was "last updated"), which lost the caller's place. "Updated" is still a column to sort by.
+export const DEFAULT_SORT = 'createdAt';
+export const DEFAULT_DIR = 'asc';
 
 export const FOLLOW_UP_OPTIONS = [
   { value: 'any', label: 'Any date' },

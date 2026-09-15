@@ -60,7 +60,7 @@ Query params (all optional): `q` (text search over name/emails/company/title/loc
 `stage` (comma list of stage keys), `sheet` (source sheet name),
 `batch` (import batch id), `followUp` (`any|overdue|today|week|none`), `booking` (`any|upcoming|none`),
 `page` (1-based, default 1), `limit` (default 25, max 500),
-`sort` (`updatedAt|createdAt|name|companyName|stage|followUp|booking.date|lastContactedAt|location|title`, default `updatedAt`), `dir` (`asc|desc`, default `desc`).
+`sort` (`updatedAt|createdAt|name|companyName|stage|category|followUp|booking.date|lastContactedAt|location|title|priorityRank`, default `createdAt`), `dir` (`asc|desc`, default `asc`). The default is insertion (calling-sheet) order, which stays put while contacts are edited; the old `updatedAt desc` default moved a contact to the top whenever its stage changed.
 Response: `{ items: Contact[] (without activities), total, page, limit, pages }`
 
 ### `GET /api/contacts/export?…same params…`
