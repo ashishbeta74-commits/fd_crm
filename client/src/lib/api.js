@@ -178,6 +178,14 @@ export const api = {
     status: () => request('/push/status'),
   },
 
+  // Phone scripts + Q&A (the calling playbook)
+  scripts: {
+    list: () => request('/scripts'),
+    create: (body) => request('/scripts', { method: 'POST', body }),
+    update: (id, body) => request(`/scripts/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/scripts/${id}`, { method: 'DELETE' }),
+    restore: () => request('/scripts/restore', { method: 'POST', body: {} }),
+  },
   // Email templates ({{mergeFields}}) and sending
   templates: {
     list: () => request('/templates'),
@@ -236,6 +244,7 @@ export const qk = {
   duplicates: (params) => ['duplicates', params || {}],
   merges: ['duplicates', 'merges'],
   templates: ['templates'],
+  scripts: ['scripts'],
   emailStatus: ['email', 'status'],
   linkedinMeta: ['linkedin', 'meta'],
   linkedinList: (params) => ['linkedin', 'list', params || {}],

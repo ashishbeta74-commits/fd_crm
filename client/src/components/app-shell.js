@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, Menu, Upload, Users, X } from 'lucide-react';
+import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, Menu, Upload, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -24,6 +24,7 @@ const NAV = [
   { href: '/linkedin', label: 'LinkedIn CRM', icon: Linkedin, accent: true },
   { href: '/duplicates', label: 'Duplicates', icon: Copy },
   { href: '/templates', label: 'Email templates', icon: Mail },
+  { href: '/scripts', label: 'Phone scripts & Q&A', icon: BookOpen },
   { href: '/import', label: 'Import', icon: Upload },
 ];
 

@@ -199,6 +199,13 @@ The dashboard keeps the selection in the URL: `/?day=…` for one day, `/?from=�
 - `GET /api/followups` now also lists open reminders as `{ kind: 'reminder', reminderId, date, time, at, overdue, priority, note, contact }`; entries on the same day are ordered by priority.
 - `GET /api/stats` adds `byPriority` and `reminders: { overdue, today, unscheduledPriority }` (urgent/high contacts with neither a follow-up nor an open reminder).
 
+### Phone scripts & Q&A (2026-09-15)
+The calling playbook, collection `scripts`: `{ kind: 'script' | 'qa', title, body, category, order, builtIn, builtInKey, createdBy, updatedBy }`. For `script`, title = name and body = the script; for `qa`, title = the question / objection and body = the answer. Any signed-in user may add, edit or delete.
+- `GET /api/scripts` → `{ items (both kinds, by kind then order), builtInCount }`
+- `POST /api/scripts` `{ kind, title, body?, category?, order? }` (201) · `PATCH /api/scripts/:id` (partial) · `DELETE /api/scripts/:id`
+- `POST /api/scripts/restore` → re-adds deleted built-ins → `{ added, items }`
+Built-ins (5 scripts, 10 Q&A) are seeded on first start from `server/src/services/scripts.js`; page `/scripts` in the web app.
+
 ### Duplicates
 - `GET /api/duplicates?by=email,phone,name_company[,name]&sheet=&q=&page=&limit=` → `{ items: [{ key, reasons, confidence, suggestedPrimaryId, contacts }], total, contactsInGroups, scanned, page, pages }`. Contacts are linked by union-find across the enabled criteria; `phone` only links when the names share a word; pairs marked "not duplicates" never link.
 - `POST /api/duplicates/merge` `{ primaryId, mergeIds }` → `{ contact, mergeId, merged }`. Primary values win, gaps are filled, notes/tags/history/import batches/reminders are combined, the others are deleted.

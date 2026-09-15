@@ -22,6 +22,8 @@ import { startPush } from './services/push.js';
 import { startDailyReports } from './services/dailyReport.js';
 import { pushRouter } from './routes/push.js';
 import { seedTemplates } from './services/emailTemplates.js';
+import { seedScripts } from './services/scripts.js';
+import { scriptsRouter } from './routes/scripts.js';
 import { mailInfo } from './services/mailer.js';
 import { authRouter } from './routes/auth.js';
 import { loadSecret, requireAuth } from './lib/auth.js';
@@ -38,6 +40,9 @@ export function createApp() {
   seedTemplates()
     .then((n) => n && console.log(`[email] seeded ${n} built-in email templates`))
     .catch((err) => console.error('[email] could not seed templates:', err.message));
+  seedScripts()
+    .then((n) => n && console.log(`[scripts] seeded ${n} built-in phone scripts and Q&A entries`))
+    .catch((err) => console.error('[scripts] could not seed:', err.message));
   console.log(mailInfo().configured ? `[email] sending as ${mailInfo().from}` : '[email] direct sending is off (mailto: fallback); set GMAIL_USER + GMAIL_APP_PASSWORD or SMTP_* to enable');
   const app = express();
   app.disable('x-powered-by');
@@ -69,6 +74,7 @@ export function createApp() {
   app.use('/api/reminders', remindersRouter);
   app.use('/api/duplicates', duplicatesRouter);
   app.use('/api/templates', templatesRouter);
+  app.use('/api/scripts', scriptsRouter);
   app.use('/api/email', emailRouter);
   app.use('/api/linkedin', linkedinRouter);
   app.use('/api/push', pushRouter);
