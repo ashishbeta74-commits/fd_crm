@@ -32,6 +32,7 @@ export const SORT_COLUMNS = {
   companyName: 'asc',
   stage: 'asc',
   category: 'asc',
+  leadQuality: 'asc',
   priorityRank: 'desc',
   followUp: 'asc',
   'booking.date': 'asc',
@@ -40,7 +41,7 @@ export const SORT_COLUMNS = {
 };
 
 /** Params that narrow the result set (page / limit / sort / dir only shape it). */
-export const FILTER_KEYS = ['q', 'stage', 'category', 'country', 'state', 'city', 'sheet', 'batch', 'tag', 'priority', 'followUp', 'booking'];
+export const FILTER_KEYS = ['q', 'stage', 'leadQuality', 'category', 'country', 'state', 'city', 'sheet', 'batch', 'tag', 'priority', 'followUp', 'booking'];
 
 /** Keys a saved view stores (filters + sort). */
 export const VIEW_KEYS = [...FILTER_KEYS, 'sort', 'dir'];
@@ -57,6 +58,7 @@ export function parseListParams(sp) {
   return {
     q: get('q'),
     stage: get('stage'),
+    leadQuality: get('leadQuality'),
     category: get('category'),
     country: get('country'),
     state: get('state'),

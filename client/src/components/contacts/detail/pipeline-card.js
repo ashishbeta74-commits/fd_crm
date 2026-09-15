@@ -6,10 +6,11 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CategoryBadge, PriorityBadge, TagList } from '@/components/badges';
+import { CategoryBadge, LeadQualityBadge, PriorityBadge, TagList } from '@/components/badges';
 import { BookingDialog } from '@/components/contacts/stage-controls';
 import { PrioritySelect } from '@/components/contacts/priority-select';
 import { CategorySelect } from '@/components/contacts/category-select';
+import { LeadQualitySelect } from '@/components/contacts/lead-quality-select';
 import { TagsInput } from '@/components/contacts/tags-input';
 import { AddFollowUpButton, RemoveFollowUpButton } from '@/components/followups/add-followup-dialog';
 import { RoundSelect } from '@/components/followups/round-select';
@@ -38,6 +39,9 @@ export function PipelineCard({ contact }) {
         <DetailRow label="Tags">
           <TagsField contact={contact} />
         </DetailRow>
+        <DetailRow label="Lead quality">
+          <LeadQualityField contact={contact} />
+        </DetailRow>
         <DetailRow label="Status">{contact.status || <Muted>—</Muted>}</DetailRow>
         <DetailRow label="Last contacted">{contact.lastContactedAt ? formatDateTime(contact.lastContactedAt) : <Muted>Never</Muted>}</DetailRow>
         <DetailRow label="Follow-up">
@@ -64,6 +68,18 @@ function PriorityField({ contact }) {
     <div className="flex flex-wrap items-center gap-2">
       <PrioritySelect value={contact.priority || ''} onChange={save} disabled={update.isPending} className="w-40" placeholder="No priority" />
       {update.isPending ? <Spinner /> : <PriorityBadge priority={contact.priority} withTooltip />}
+    </div>
+  );
+}
+
+/** Inline lead-quality picker (presets, the team's own labels, or "Other…"); saves on change. */
+function LeadQualityField({ contact }) {
+  const update = useUpdateContact();
+  const save = (leadQuality) => update.mutate({ id: contact._id, data: { leadQuality } }, { onSuccess: () => toast.success(leadQuality ? `Lead quality set to ${leadQuality}` : 'Lead quality cleared') });
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <LeadQualitySelect value={contact.leadQuality || ''} onChange={save} disabled={update.isPending} className="w-44" placeholder="Not set" />
+      {update.isPending ? <Spinner /> : <LeadQualityBadge value={contact.leadQuality} />}
     </div>
   );
 }

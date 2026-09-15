@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { GitMerge, Loader2, Tag, Trash2, X } from 'lucide-react';
-import { CATEGORIES, CATEGORY_STYLES, PRIORITIES, PRIORITY_STYLES, STAGES, STAGE_STYLES, categoryLabel, priorityLabel, stageLabel } from '@/lib/constants';
+import { CATEGORIES, CATEGORY_STYLES, LEAD_QUALITIES, PRIORITIES, PRIORITY_STYLES, STAGES, STAGE_STYLES, categoryLabel, leadQualityStyle, priorityLabel, stageLabel } from '@/lib/constants';
 import { pluralize } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { useMeta } from '@/hooks/use-meta';
 
 const CLEAR_PRIORITY = '__clear__';
 const CLEAR_CATEGORY = '__clear_type__';
+const CLEAR_QUALITY = '__clear_quality__';
 const MAX_MERGE = 10;
 
 const Spinner = () => <Loader2 className="animate-spin" aria-hidden />;
@@ -87,6 +88,7 @@ function TagsPopover({ onApply, busy }) {
 /** Actions for the selected contacts. `onDone` clears the selection after a successful action. */
 export function BulkActionsBar({ ids, onDone }) {
   const bulk = useBulkContacts();
+  const { data: meta } = useMeta(); // the team's own lead-quality labels
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [merging, setMerging] = useState(false);
   // Which control is working, so only that one shows a spinner ('stage' | 'priority' | 'delete').
@@ -114,6 +116,12 @@ export function BulkActionsBar({ ids, onDone }) {
     const priority = value === CLEAR_PRIORITY ? '' : value;
     run('priority', { priority }, (r) =>
       priority ? `Priority set to ${priorityLabel(priority)} for ${pluralize(r.updated ?? n, 'contact')}` : `Priority cleared for ${pluralize(r.updated ?? n, 'contact')}`,
+    );
+  };
+  const setLeadQuality = (value) => {
+    const leadQuality = value === CLEAR_QUALITY ? '' : value;
+    run('leadQuality', { leadQuality }, (r) =>
+      leadQuality ? `Lead quality set to ${leadQuality} for ${pluralize(r.updated ?? n, 'contact')}` : `Lead quality cleared for ${pluralize(r.updated ?? n, 'contact')}`,
     );
   };
   const setCategory = (value) => {
@@ -165,6 +173,23 @@ export function BulkActionsBar({ ids, onDone }) {
           ))}
           <SelectSeparator />
           <SelectItem value={CLEAR_PRIORITY}>Clear priority</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Select value="" onValueChange={setLeadQuality} disabled={busy}>
+        <SelectTrigger size="sm" className="w-44" aria-label="Set lead quality for selected contacts">
+          {running === 'leadQuality' ? <Spinner /> : null}
+          <SelectValue placeholder="Set lead quality…" />
+        </SelectTrigger>
+        <SelectContent>
+          {[...new Set([...LEAD_QUALITIES, ...(meta?.leadQualityCounts || []).map((q) => q.name)])].map((q) => (
+            <SelectItem key={q} value={q}>
+              <span className={cn('size-2 rounded-full', leadQualityStyle(q).dot)} aria-hidden />
+              {q}
+            </SelectItem>
+          ))}
+          <SelectSeparator />
+          <SelectItem value={CLEAR_QUALITY}>Clear lead quality</SelectItem>
         </SelectContent>
       </Select>
 

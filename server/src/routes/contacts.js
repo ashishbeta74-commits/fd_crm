@@ -16,7 +16,7 @@ import { formatZoned } from '../config/timezone.js';
 export const contactsRouter = Router();
 
 const SEARCH_FIELDS = ['name', 'email', 'primaryEmail', 'secondaryEmail', 'companyName', 'title', 'location', 'city', 'state', 'country', 'contactMain', 'contactL1', 'companyNo', 'website', 'status', 'notes'];
-const SORT_FIELDS = ['updatedAt', 'createdAt', 'name', 'companyName', 'stage', 'category', 'followUp', 'booking.date', 'lastContactedAt', 'location', 'title', 'priorityRank'];
+const SORT_FIELDS = ['updatedAt', 'createdAt', 'name', 'companyName', 'stage', 'category', 'leadQuality', 'followUp', 'booking.date', 'lastContactedAt', 'location', 'title', 'priorityRank'];
 
 export const listQuery = z.object({
   q: z.string().trim().max(200).optional(),
@@ -29,6 +29,8 @@ export const listQuery = z.object({
   priority: z.string().optional(),
   // comma list of contact types (travel_advisor, executive_assistant, other); "none" = not set
   category: z.string().optional(),
+  // comma list of lead qualities (exact, case-insensitive); "none" = not set
+  leadQuality: z.string().optional(),
   // comma lists of place names (exact, case-insensitive); "none" = not set
   country: z.string().optional(),
   state: z.string().optional(),
@@ -63,7 +65,7 @@ export function buildFilter(q) {
   }
   if (q.priority) filter.priority = { $in: csv(q.priority).flatMap((v) => (v === 'none' ? ['', null] : [v])) };
   if (q.category) filter.category = { $in: csv(q.category).flatMap((v) => (v === 'none' ? ['', null] : [v])) };
-  for (const k of ['country', 'state', 'city']) {
+  for (const k of ['country', 'state', 'city', 'leadQuality']) {
     if (!q[k]) continue;
     const values = csv(q[k]);
     const named = values.filter((v) => v !== 'none').map((v) => new RegExp(`^${escapeRegex(v)}$`, 'i'));
@@ -134,6 +136,7 @@ const lastLoggedTouch = (doc, except = null) => {
 /** Apply validated input to a document, logging stage/booking changes as activities. */
 export function applyInput(doc, input) {
   const activities = [];
+  const before = { leadQuality: doc.leadQuality };
   for (const k of TEXT_FIELDS) if (input[k] !== undefined) doc[k] = input[k];
   // Editing the place parts refreshes the display line unless the line itself was edited too.
   if (input.location === undefined && ['city', 'state', 'country'].some((k) => input[k] !== undefined)) {
@@ -155,6 +158,9 @@ export function applyInput(doc, input) {
     const from = doc.priority;
     doc.priority = input.priority;
     activities.push({ type: 'edit', message: input.priority ? `Priority set to ${priorityLabel(input.priority)}${from ? ` (was ${priorityLabel(from)})` : ''}` : `Priority cleared (was ${priorityLabel(from)})` });
+  }
+  if (input.leadQuality !== undefined && input.leadQuality !== (before.leadQuality || '')) {
+    activities.push({ type: 'edit', message: input.leadQuality ? `Lead quality set to ${input.leadQuality}${before.leadQuality ? ` (was ${before.leadQuality})` : ''}` : `Lead quality cleared (was ${before.leadQuality})` });
   }
   if (input.category !== undefined && input.category !== (doc.category || '')) {
     const from = doc.category;
@@ -230,6 +236,7 @@ contactsRouter.get('/export', async (req, res) => {
     { header: 'Stage', key: 'stage', width: 16 },
     { header: 'Priority', key: 'priority', width: 10 },
     { header: 'Type', key: 'category', width: 18 },
+    { header: 'Lead Quality', key: 'leadQuality', width: 16 },
     { header: 'Tags', key: 'tags', width: 20 },
     { header: 'Follow-up', key: 'followUp', width: 12 },
     { header: 'Follow-up Note', key: 'followUpNote', width: 24 },
@@ -273,7 +280,8 @@ contactsRouter.get('/export', async (req, res) => {
 // ---------- bulk ----------
 const bulkInput = z.object({
   ids: z.array(z.string()).min(1).max(2000),
-  action: z.enum(['stage', 'delete', 'priority', 'category', 'addTags', 'removeTags']),
+  action: z.enum(['stage', 'delete', 'priority', 'category', 'leadQuality', 'addTags', 'removeTags']),
+  leadQuality: z.string().trim().max(40).optional(),
   stage: z.enum(STAGE_KEYS).optional(),
   priority: z.enum(['', ...PRIORITY_KEYS]).optional(),
   category: z.enum(['', ...CATEGORY_KEYS]).optional(),
@@ -290,6 +298,7 @@ contactsRouter.post('/bulk', async (req, res) => {
   if (body.action === 'stage' && !body.stage) throw new HttpError(400, 'stage is required');
   if (body.action === 'priority' && body.priority === undefined) throw new HttpError(400, 'priority is required');
   if (body.action === 'category' && body.category === undefined) throw new HttpError(400, 'category is required');
+  if (body.action === 'leadQuality' && body.leadQuality === undefined) throw new HttpError(400, 'leadQuality is required');
   if ((body.action === 'addTags' || body.action === 'removeTags') && !body.tags?.length) throw new HttpError(400, 'tags are required');
   const docs = await Contact.find({ _id: { $in: body.ids } });
   const lower = new Set((body.tags || []).map((t) => t.toLowerCase()));
@@ -298,6 +307,7 @@ contactsRouter.post('/bulk', async (req, res) => {
     if (body.action === 'stage') input = { stage: body.stage };
     else if (body.action === 'priority') input = { priority: body.priority };
     else if (body.action === 'category') input = { category: body.category };
+    else if (body.action === 'leadQuality') input = { leadQuality: body.leadQuality };
     else if (body.action === 'addTags') input = { tags: [...doc.tags, ...body.tags] };
     else input = { tags: doc.tags.filter((t) => !lower.has(t.toLowerCase())) };
     const before = JSON.stringify(doc.tags);

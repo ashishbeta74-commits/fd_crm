@@ -1,6 +1,6 @@
 import { Flag, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { CATEGORY_MAP, CATEGORY_STYLES, PRIORITY_MAP, PRIORITY_STYLES, STAGE_MAP, STAGE_STYLES, categoryLabel, priorityLabel, stageLabel } from '@/lib/constants';
+import { CATEGORY_MAP, CATEGORY_STYLES, PRIORITY_MAP, PRIORITY_STYLES, STAGE_MAP, STAGE_STYLES, categoryLabel, leadQualityStyle, priorityLabel, stageLabel } from '@/lib/constants';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export const stageDescription = (key) => STAGE_MAP[key]?.description || '';
@@ -98,6 +98,20 @@ export function CategoryBadge({ category, className, emptyLabel = '', withToolti
         {label}
       </span>
     </MaybeTooltip>
+  );
+}
+
+/** Lead quality pill ("Money minded", "Cheap rate", "Services" or the team's own label). Renders nothing (or `emptyLabel`) when unset. */
+export function LeadQualityBadge({ value, className, emptyLabel = '', size = 'sm' }) {
+  if (!value) {
+    return emptyLabel ? <span className={cn('text-xs text-muted-foreground', className)}>{emptyLabel}</span> : null;
+  }
+  const style = leadQualityStyle(value);
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-full border font-medium whitespace-nowrap', size === 'xs' ? 'px-1.5 py-px text-[11px]' : 'px-2 py-0.5 text-xs', style.badge, className)}>
+      <span className={cn('rounded-full', style.dot, size === 'xs' ? 'size-1.5' : 'size-2')} aria-hidden="true" />
+      {value}
+    </span>
   );
 }
 

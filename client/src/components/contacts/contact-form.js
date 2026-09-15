@@ -12,6 +12,7 @@ import { formatDateTime, isoDate, weekdayName } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { PrioritySelect } from '@/components/contacts/priority-select';
 import { CategorySelect } from '@/components/contacts/category-select';
+import { LeadQualitySelect } from '@/components/contacts/lead-quality-select';
 import { TagsInput } from '@/components/contacts/tags-input';
 
 // Inputs ease their border/ring in on focus (shadcn inputs transition color + box-shadow; this widens it to the border).
@@ -22,6 +23,7 @@ export function contactToForm(c = {}) {
   const f = {};
   for (const g of CONTACT_FIELD_GROUPS) for (const fld of g.fields) f[fld.key] = c[fld.key] || '';
   f.status = c.status || '';
+  f.leadQuality = c.leadQuality || '';
   f.stage = c.stage || 'new';
   f.followUp = isoDate(c.followUp);
   f.followUpNote = c.followUpNote || '';
@@ -40,6 +42,7 @@ export function formToPayload(f) {
   const p = {};
   for (const g of CONTACT_FIELD_GROUPS) for (const fld of g.fields) p[fld.key] = (f[fld.key] || '').trim();
   p.status = (f.status || '').trim();
+  p.leadQuality = (f.leadQuality || '').trim();
   p.stage = f.stage;
   p.followUp = f.followUp || null;
   p.followUpNote = (f.followUpNote || '').trim();
@@ -120,6 +123,9 @@ export function ContactForm({ initial, onSubmit, onCancel, submitting = false, s
           </Field>
           <Field id="cf-tags" label="Tags">
             <TagsInput id="cf-tags" value={form.tags} onChange={set('tags')} />
+          </Field>
+          <Field id="cf-leadQuality" label="Lead quality">
+            <LeadQualitySelect id="cf-leadQuality" size="default" className="w-full" value={form.leadQuality} onChange={set('leadQuality')} placeholder="Not set" />
           </Field>
           <Field id="cf-status" label="Status (free text)">
             <Input id="cf-status" value={form.status} onChange={set('status')} className={FIELD} />

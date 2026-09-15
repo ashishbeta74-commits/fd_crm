@@ -30,6 +30,16 @@ export const PRIORITY_MAP = Object.fromEntries(PRIORITIES.map((p) => [p.key, p])
 export const priorityLabel = (key) => PRIORITY_MAP[key]?.label || '';
 export const priorityRank = (key) => PRIORITY_MAP[key]?.rank || 0;
 
+// Lead quality presets (mirrors LEAD_QUALITIES in server/src/fields.js). Free text on the contact, so "Other…" lets the team name their own.
+export const LEAD_QUALITIES = ['Money minded', 'Cheap rate', 'Services'];
+export const LEAD_QUALITY_STYLES = {
+  'money minded': { badge: 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-900', dot: 'bg-emerald-500' },
+  'cheap rate': { badge: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-900', dot: 'bg-amber-500' },
+  services: { badge: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950 dark:text-sky-200 dark:border-sky-900', dot: 'bg-sky-500' },
+};
+export const LEAD_QUALITY_OTHER = { badge: 'bg-violet-100 text-violet-800 border-violet-200 dark:bg-violet-950 dark:text-violet-200 dark:border-violet-900', dot: 'bg-violet-500' };
+export const leadQualityStyle = (v) => LEAD_QUALITY_STYLES[String(v || '').toLowerCase()] || LEAD_QUALITY_OTHER;
+
 // How a follow-up was done (activity `channel` on the server).
 export const FOLLOW_UP_CHANNELS = [
   { key: 'call', label: 'Call', description: 'Phoned them' },

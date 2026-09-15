@@ -32,6 +32,10 @@ export const PRIORITY_KEYS = PRIORITIES.map((p) => p.key);
 export const priorityRank = (key) => PRIORITIES.find((p) => p.key === key)?.rank || 0;
 export const priorityLabel = (key) => PRIORITIES.find((p) => p.key === key)?.label || '';
 
+// Lead quality: what the call revealed about the lead, kept beside the stage. Free text so the team
+// can name their own ("Other…" in the UI); these are the suggested presets.
+export const LEAD_QUALITIES = ['Money minded', 'Cheap rate', 'Services'];
+
 // Who the contact is (which kind of list they came from). '' = not set. Filterable on the contacts page;
 // auto-detected on import from the list name and the job title, editable per contact or per list.
 export const CATEGORIES = [
@@ -88,6 +92,7 @@ export const TEXT_FIELDS = [
   'state',
   'country',
   'status',
+  'leadQuality',
   'followUpNote',
   'notes',
 ];
@@ -118,6 +123,7 @@ export const FIELDS = [
   { key: 'country', label: 'Country', type: 'text', group: 'company', aliases: ['company country', 'contact country', 'nation', 'hq country'] },
   { key: 'location', label: 'Location', type: 'text', group: 'company', multi: true, aliases: ['contact location', 'company location', 'address', 'area', 'place', 'hq', 'headquarters', 'city state', 'city/state', 'location'] },
   { key: 'status', label: 'Status', type: 'text', group: 'pipeline', aliases: ['current status', 'lead status', 'call status', 'contact status', 'remark status', 'state of lead', 'status 1', 'outreach status'] },
+  { key: 'leadQuality', label: 'Lead Quality', type: 'text', group: 'pipeline', aliases: ['quality', 'lead type', 'lead kind', 'budget', 'client type', 'buyer type'] },
   { key: 'calledOn', label: 'Date of calling (1st call)', type: 'date', group: 'pipeline', aliases: ['date of calling', 'calling date', 'call date', 'called on', 'date called', 'last contacted', 'last contact', 'contacted on', 'date of call', 'call 1 date'] },
   { key: 'followUp1', label: 'Follow-up 1 date', type: 'date', group: 'pipeline', aliases: ['follow up 1', 'followup 1', 'follow up 1 date', '1st follow up', 'first follow up', 'follow up date 1'] },
   { key: 'followUp1Status', label: 'Follow-up 1 status', type: 'text', group: 'pipeline', aliases: ['status 2', 'follow up 1 status', 'followup 1 status', 'status follow up 1', '1st follow up status'] },

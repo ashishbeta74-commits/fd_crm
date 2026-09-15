@@ -13,6 +13,8 @@ import { CategoryBadge, PriorityBadge, TagList } from '@/components/badges';
 import { AddFollowUpButton, RemoveFollowUpButton } from '@/components/followups/add-followup-dialog';
 import { AddBookingButton } from '@/components/contacts/add-booking-button';
 import { StageSelect } from '@/components/contacts/stage-controls';
+import { LeadQualitySelect } from '@/components/contacts/lead-quality-select';
+import { useUpdateContact } from '@/hooks/use-contact-mutations';
 import { ContactActionsMenu } from '@/components/contacts/contact-actions-menu';
 import { DEFAULT_DIR, DEFAULT_SORT } from '@/components/contacts/list/contact-filters';
 import { LinkedInIconLink } from '@/components/contacts/list/linkedin-link';
@@ -26,6 +28,7 @@ const COLUMNS = [
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },
   { key: 'stage', label: 'Stage', sort: 'stage' },
+  { key: 'leadQuality', label: 'Lead quality', sort: 'leadQuality' },
   { key: 'category', label: 'Type', sort: 'category' },
   { key: 'priority', label: 'Priority', sort: 'priorityRank' },
   { key: 'tags', label: 'Tags' },
@@ -39,6 +42,12 @@ const EMPTY_SET = new Set();
 const SKELETON_ROWS = 8;
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
+
+/** Inline lead-quality picker; saves on change (errors are toasted by the hook). */
+function LeadQualityCell({ contact }) {
+  const update = useUpdateContact();
+  return <LeadQualitySelect value={contact.leadQuality || ''} onChange={(leadQuality) => update.mutate({ id: contact._id, data: { leadQuality } })} disabled={update.isPending} className="w-40" placeholder="—" />;
+}
 
 function SortableHead({ label, column, sort, dir, onSort, className }) {
   const active = sort === column;
@@ -140,6 +149,9 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange, stagePendin
       <TableCell>
         {/* The trigger shows the stage label itself, so no tooltip here. */}
         <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} disabled={stagePending} className="w-36" />
+      </TableCell>
+      <TableCell>
+        <LeadQualityCell contact={c} />
       </TableCell>
       <TableCell>
         <CategoryBadge category={c.category} emptyLabel="—" withTooltip />

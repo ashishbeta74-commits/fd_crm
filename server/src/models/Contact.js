@@ -52,6 +52,8 @@ const ContactSchema = new Schema(
     // Set once the start-up pass tried to fill state / country from the city (see lib/migrations.js).
     placeGuessed: { type: Boolean, default: false },
     status: text(),
+    // What the call revealed about the lead ("Money minded", "Cheap rate", "Services", or the team's own label)
+    leadQuality: text({ index: true }),
     followUp: { type: Date, default: null, index: true },
     followUpNote: text(),
     // Follow-up rounds done so far ("Follow Up 1", "Follow Up 2" in the calling sheets); the next one is #count+1.

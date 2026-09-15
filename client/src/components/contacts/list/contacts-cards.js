@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { daysFromToday, formatDate, formatTime, relativeDay, timeAgo } from '@/lib/format';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CategoryBadge, PriorityBadge, TagList } from '@/components/badges';
+import { CategoryBadge, LeadQualityBadge, PriorityBadge, TagList } from '@/components/badges';
 import { AddFollowUpButton, RemoveFollowUpButton } from '@/components/followups/add-followup-dialog';
 import { AddBookingButton } from '@/components/contacts/add-booking-button';
 import { StageSelect } from '@/components/contacts/stage-controls';
@@ -51,6 +51,7 @@ function ContactCard({ contact: c, selected, onToggle, onStageChange, stagePendi
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
+        <LeadQualityBadge value={c.leadQuality} size="xs" />
         <CategoryBadge category={c.category} size="xs" short />
         <PriorityBadge priority={c.priority} size="xs" />
         <TagList tags={c.tags} max={3} size="xs" />

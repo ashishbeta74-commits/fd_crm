@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Download, MapPin, Plus, Search, Upload, X } from 'lucide-react';
 import { api } from '@/lib/api';
-import { CATEGORIES, CATEGORY_STYLES, PRIORITIES, PRIORITY_STYLES, STAGES, STAGE_STYLES } from '@/lib/constants';
+import { CATEGORIES, CATEGORY_STYLES, LEAD_QUALITIES, PRIORITIES, PRIORITY_STYLES, STAGES, STAGE_STYLES, leadQualityStyle } from '@/lib/constants';
 import { SavedViewsMenu } from '@/components/views/saved-views-menu';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -223,6 +223,15 @@ function PlaceFilter({ label, items, value, onChange }) {
   );
 }
 
+/** Lead quality: the presets plus every label in use (with counts), and "Not set". */
+function LeadQualityFilter({ value, onChange }) {
+  const { data } = useMeta();
+  const counts = new Map((data?.leadQualityCounts || []).map((q) => [q.name, q.count]));
+  const names = [...new Set([...LEAD_QUALITIES, ...counts.keys(), ...csv(value).filter((v) => v !== 'none')])];
+  const options = [...names.map((q) => ({ key: q, label: counts.has(q) ? `${q} (${counts.get(q)})` : q, dot: leadQualityStyle(q).dot })), { key: 'none', label: 'Not set' }];
+  return <MultiFilter label="Lead quality" options={options} value={value} onChange={onChange} />;
+}
+
 /** Single-value filter; the trigger always shows "<label>: <value>". */
 function SingleFilter({ label, options, value, onChange }) {
   return (
@@ -287,6 +296,7 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
       <SearchInput value={params.q} onCommit={commitSearch} />
       <TypeToggles value={params.category} onChange={(category) => setParams({ category })} />
       <MultiFilter label="Stage" options={STAGE_OPTIONS} value={params.stage} onChange={(stage) => setParams({ stage })} />
+      <LeadQualityFilter value={params.leadQuality} onChange={(leadQuality) => setParams({ leadQuality })} />
 
       <SheetFilter value={params.sheet} onChange={(sheet) => setParams({ sheet })} />
       <PlaceFilter label="Country" items={meta?.countries} value={params.country} onChange={(country) => setParams({ country })} />
