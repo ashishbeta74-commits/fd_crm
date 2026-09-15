@@ -143,6 +143,7 @@ Only entries logged in the app can be deleted; entries a sheet import wrote (`fr
   "followUps": { "overdue": 3, "today": 2, "week": 9 },
   "contactedToday": 4,          // lastContactedAt since midnight: calls / emails logged, or moved out of New
   "prospectsToday": 2,          // contacts that entered the Prospect stage since midnight and are still in it
+  "todayByStage": { "prospect": 2, "voicemail": 40, "hung_up": 3, "not_interested": 5 },   // same rule, per call-result stage
   "upcomingBookings": [ { _id, name, companyName, stage, booking } ],   // next 8
   "dueFollowUps": [ { _id, name, companyName, stage, followUp, followUpNote } ],   // overdue + this week, 8
   "recentActivity": [ { contactId, name, companyName, activity: { type, message, fromStage, toStage, at } } ],

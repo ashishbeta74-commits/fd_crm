@@ -63,7 +63,10 @@ async function computeStats() {
   const now = new Date();
   const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const localTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const [total, byStage, bySheet, overdue, dueToday, dueWeek, upcomingBookings, dueFollowUps, recentActivity, recentImports, contactedToday, prospectsToday, byPriority, remindersOverdue, remindersToday, urgentOpen] =
+  // Contacts moved into a stage since midnight (by hand, drag, bulk, a logged call or a sheet sync) and still there:
+  // moving one back out takes it off the count again.
+  const enteredToday = (stage) => Contact.countDocuments({ stage, activities: { $elemMatch: { type: 'stage', toStage: stage, at: { $gte: localMidnight } } } });
+  const [total, byStage, bySheet, overdue, dueToday, dueWeek, upcomingBookings, dueFollowUps, recentActivity, recentImports, contactedToday, prospectsToday, byPriority, remindersOverdue, remindersToday, urgentOpen, voicemailToday, hungUpToday, notInterestedToday] =
     await Promise.all([
       Contact.countDocuments(),
       Contact.aggregate([{ $group: { _id: '$stage', count: { $sum: 1 } } }]),
@@ -95,9 +98,7 @@ async function computeStats() {
       ]),
       ImportBatch.find().sort({ createdAt: -1 }).limit(5).select('fileName totals status createdAt undoneAt').lean(),
       Contact.countDocuments({ lastContactedAt: { $gte: localMidnight } }),
-      // Contacts moved into Prospect since midnight (by hand, drag, bulk, a logged call or a sheet sync)
-      // and still there: moving one back out takes it off the count again.
-      Contact.countDocuments({ stage: 'prospect', activities: { $elemMatch: { type: 'stage', toStage: 'prospect', at: { $gte: localMidnight } } } }),
+      enteredToday('prospect'),
       Contact.aggregate([{ $group: { _id: '$priority', count: { $sum: 1 } } }]),
       Reminder.countDocuments({ done: false, at: { $lt: now } }),
       Reminder.countDocuments({ done: false, at: { $gte: now, $lt: localTomorrow } }),
@@ -108,6 +109,9 @@ async function computeStats() {
         { $match: { open: { $size: 0 } } },
         { $count: 'n' },
       ]),
+      enteredToday('voicemail'),
+      enteredToday('hung_up'),
+      enteredToday('not_interested'),
     ]);
 
   return {
@@ -119,6 +123,8 @@ async function computeStats() {
     reminders: { overdue: remindersOverdue, today: remindersToday, unscheduledPriority: urgentOpen[0]?.n || 0 },
     contactedToday,
     prospectsToday,
+    // today's call results: contacts that entered the stage since midnight and are still in it
+    todayByStage: { prospect: prospectsToday, voicemail: voicemailToday, hung_up: hungUpToday, not_interested: notInterestedToday },
     upcomingBookings,
     dueFollowUps,
     recentActivity,

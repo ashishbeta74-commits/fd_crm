@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { AlarmClock, BellRing, CalendarCheck, CalendarClock, Flag, Linkedin, PhoneCall, Plus, RefreshCw, Sparkles, Target, Upload, Users } from 'lucide-react';
+import { AlarmClock, BellRing, CalendarCheck, CalendarClock, Flag, Linkedin, PhoneCall, PhoneOff, Plus, RefreshCw, Sparkles, Target, ThumbsDown, Upload, Users, Voicemail } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, qk } from '@/lib/api';
 import { STAGE_MAP } from '@/lib/constants';
@@ -157,6 +157,7 @@ export function Dashboard() {
     byPriority = {},
     contactedToday = 0,
     prospectsToday = 0,
+    todayByStage = {},
     upcomingBookings = [],
     dueFollowUps = [],
     recentActivity = [],
@@ -194,6 +195,9 @@ export function Dashboard() {
           <StatTile label="Total contacts" value={total} href="/contacts" icon={Users} accent="slate" caption={sheetCount ? `from ${pluralize(sheetCount, 'sheet')}` : undefined} hint="Every contact in the CRM, across all stages" />
           <StatTile label="Calls today" value={contactedToday} href="/contacts?sort=lastContactedAt&dir=desc" icon={PhoneCall} accent="blue" caption="worked so far today" hint="Contacts with a call or email logged since midnight, or moved out of New today" />
           <StatTile label="Prospects today" value={prospectsToday} href="/contacts?stage=prospect&sort=updatedAt&dir=desc" icon={Sparkles} accent="violet" caption="moved to Prospect today" hint="Contacts that entered the Prospect stage since midnight" />
+          <StatTile label="Voice mails today" value={todayByStage.voicemail || 0} href="/contacts?stage=voicemail&sort=updatedAt&dir=desc" icon={Voicemail} accent="amber" caption="moved to Voice Mail today" hint="Contacts that entered the Voice Mail stage since midnight and are still there" />
+          <StatTile label="Hung up today" value={todayByStage.hung_up || 0} href="/contacts?stage=hung_up&sort=updatedAt&dir=desc" icon={PhoneOff} accent="orange" caption="moved to Hung Up today" hint="Contacts that entered the Hung Up stage since midnight and are still there" />
+          <StatTile label="Not interested today" value={todayByStage.not_interested || 0} href="/contacts?stage=not_interested&sort=updatedAt&dir=desc" icon={ThumbsDown} accent="slate" caption="moved to Not Interested today" hint="Contacts that entered the Not Interested stage since midnight and are still there" />
           <StatTile label="Total prospects" value={byStage.prospect || 0} href="/contacts?stage=prospect" icon={Target} accent="violet" caption={total ? `${Math.round(((byStage.prospect || 0) / total) * 100)}% of all contacts` : undefined} hint={STAGE_MAP.prospect.description} />
           <StatTile label="Connected so far" value={reached} href={`/contacts?stage=${REACHED_STAGES.join(',')}`} icon={Users} accent="green" caption={total ? `${Math.round((reached / total) * 100)}% of all contacts` : undefined} hint="Contacts reached at least once: in Connected or a stage past it" />
           <StatTile
