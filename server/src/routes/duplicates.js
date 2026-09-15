@@ -153,7 +153,7 @@ duplicatesRouter.get('/', async (req, res) => {
 });
 
 // ---------- merge ----------
-const STAGE_RANK = { new: 0, started: 1, voicemail: 1, wrong_number: 1, connected: 2, prospect: 3, ready: 4, future_booking: 4, converted: 5, done: 6 };
+const STAGE_RANK = { new: 0, started: 1, voicemail: 1, wrong_number: 1, hung_up: 1, not_interested: 1, connected: 2, prospect: 3, ready: 4, future_booking: 4, converted: 5, done: 6 };
 const joinText = (a, b, sep) => (a && b ? `${a}${sep}${b}` : a || b || '');
 
 /** Fold `other` into `primary` (mongoose docs). Primary values win; gaps are filled from `other`. */

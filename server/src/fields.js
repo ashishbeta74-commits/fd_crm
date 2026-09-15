@@ -8,6 +8,8 @@ export const STAGES = [
   { key: 'connected', label: 'Connected', description: 'Spoke with the contact' },
   { key: 'voicemail', label: 'Voice Mail', description: 'Left a voicemail / no answer' },
   { key: 'wrong_number', label: 'Wrong Number', description: 'Number was wrong or out of service' },
+  { key: 'hung_up', label: 'Hung Up', description: 'Picked up and hung up / cut the call' },
+  { key: 'not_interested', label: 'Not Interested', description: 'Spoke, but they do not need the service' },
   { key: 'prospect', label: 'Prospect', description: 'Showed interest' },
   { key: 'ready', label: 'Ready', description: 'Ready to convert' },
   { key: 'converted', label: 'Converted', description: 'Became a customer' },

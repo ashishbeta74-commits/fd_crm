@@ -27,7 +27,7 @@ const REFETCH_MS = 60_000;
 // Champagne buttons on the dark hero, like "Reserve" on the site.
 const HERO_BUTTON = 'bg-brand-champagne text-brand-espresso hover:bg-brand-gold-bright dark:bg-brand-champagne dark:text-brand-espresso dark:hover:bg-brand-gold-bright';
 // Stages that mean the contact was reached at least once (Connected and everything past it).
-const REACHED_STAGES = ['connected', 'prospect', 'ready', 'converted', 'done', 'future_booking'];
+const REACHED_STAGES = ['connected', 'hung_up', 'not_interested', 'prospect', 'ready', 'converted', 'done', 'future_booking'];
 
 // New York time, whatever the browser's zone (the team calls on New York hours).
 const greeting = () => {

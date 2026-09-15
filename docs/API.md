@@ -13,6 +13,8 @@ All responses are JSON unless noted. Errors: `{ "error": "message", "details"?: 
 | `connected` | Connected | spoke with the contact |
 | `voicemail` | Voice Mail | left a voicemail / no answer |
 | `wrong_number` | Wrong Number | number was wrong or out of service |
+| `hung_up` | Hung Up | picked up and hung up / cut the call |
+| `not_interested` | Not Interested | spoke, but they do not need the service ("dont need", "declined", "DNC" in the sheets) |
 | `prospect` | Prospect | showed interest |
 | `ready` | Ready | ready to convert |
 | `converted` | Converted | became a customer |
@@ -77,7 +79,7 @@ Editable fields: `name email title companyName website primaryEmail secondaryEma
 ### `DELETE /api/contacts/:id` → `{ ok: true }`
 
 ### `POST /api/contacts/:id/activities` → updated contact
-- Log a call: `{ "type": "call", "message"?: "…", "stage"?: "connected" | "voicemail" | "wrong_number" | any stage, "followUp"?: "YYYY-MM-DD", "followUpNote"?: "…", "booking"?: {date,time,note} }`. Without `stage`, a `new` contact moves to `started`.
+- Log a call: `{ "type": "call", "message"?: "…", "stage"?: "connected" | "voicemail" | "wrong_number" | "hung_up" | "not_interested" | any stage, "followUp"?: "YYYY-MM-DD", "followUpNote"?: "…", "booking"?: {date,time,note} }`. Without `stage`, a `new` contact moves to `started`.
 - Add a note: `{ "type": "note", "message": "…", "stage"?: "…", "followUp"?: …, "booking"?: … }`
 - Add a follow-up (one round done): `{ "type": "followup", "message"?: "what happened", "followUp"?: "YYYY-MM-DD" (the next one; omitted = nothing further, the date is cleared), "followUpNote"?: "…", "stage"?: "…" }` → `followUpCount` + 1, `lastContactedAt` = now, activity `Follow-up #N done - next on …`.
 ### `DELETE /api/contacts/:id/followups/last` → updated contact
@@ -128,7 +130,7 @@ Only entries logged in the app can be deleted; entries a sheet import wrote (`fr
 - `GET /api/imports/:id` → ImportBatch (with the stored `plans`)
 - `GET /api/imports/sources` → `{ items: [ { spreadsheetId, gid, url, title, lastBatchId, lastSyncedAt, totals, strategy, updateStage } ] }` — linked Google Sheets (latest batch per sheet)
 - `POST /api/imports/:id/resync` body `{ duplicateStrategy?: "skip"|"update" (default update), updateStage?: boolean (default false), requirePhone?: boolean }` → re-fetches the linked sheet and re-imports with the stored mapping → new ImportBatch (`resyncOf` = id). 400 if the batch did not come from a link.
-  With `updateStage: false` (the sync default) stages chosen in the CRM are kept: the sheet only moves contacts that are still in a call-progress stage (`new`, `started`, `connected`, `voicemail`, `wrong_number`), and new call rounds always add activities. Nothing is ever deleted by a sync.
+  With `updateStage: false` (the sync default) stages chosen in the CRM are kept: the sheet only moves contacts that are still in a call-progress stage (`new`, `started`, `connected`, `voicemail`, `wrong_number`, `hung_up`, `not_interested`), and new call rounds always add activities. Nothing is ever deleted by a sync.
   The server also re-syncs every linked sheet on a timer when `SHEET_SYNC_MINUTES` > 0.
 - `GET /api/imports/template` → .xlsx template with the expected column names
 - `DELETE /api/imports/:id` → undo: deletes contacts created by that import → `{ deleted, batch }`

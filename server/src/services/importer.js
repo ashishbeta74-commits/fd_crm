@@ -18,7 +18,7 @@ const safeKey = (h) => String(h).replace(/[.$]/g, '_').trim() || 'column';
 const atNoon = (d) => new Date(d.getTime() + 12 * 60 * 60 * 1000);
 
 // Stages that record the result of a call (the contact was dialled).
-const CALLED_STAGES = new Set(['connected', 'voicemail', 'wrong_number']);
+const CALLED_STAGES = new Set(['connected', 'voicemail', 'wrong_number', 'hung_up', 'not_interested']);
 // Stages a sheet re-sync may still move without the "update stage" option: the call-progress stages.
 const SHEET_MOVABLE_STAGES = new Set(['new', 'started', ...CALLED_STAGES]);
 

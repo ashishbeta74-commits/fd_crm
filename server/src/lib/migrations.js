@@ -1,7 +1,8 @@
 // One-off data migrations, run once at start-up (each one is idempotent and cheap when there is nothing to do).
 import mongoose from 'mongoose';
 import { Contact } from '../models/Contact.js';
-import { guessCategory } from '../fields.js';
+import { guessCategory, stageLabel } from '../fields.js';
+import { matchStage } from './status.js';
 import { knownCityRegion, splitLocation } from './geo.js';
 
 /**
@@ -147,6 +148,38 @@ async function inferPlaces() {
   console.log(`[migrate] state / country inferred from the city for ${filled} of ${candidates.length} contact(s)`);
 }
 
+/**
+ * "Hung Up" and "Not Interested" became stages on 2026-09-15. Before that, sheet statuses such as
+ * "hung up", "dont need", "declined" or "DNC" landed the contact in Started; contacts still there whose
+ * status text says so move to the new stage. Runs each start, finds nothing after the first time.
+ */
+async function hungUpAndNotInterested() {
+  const col = mongoose.connection.collection('contacts');
+  const cursor = col.find({ stage: 'started', status: { $nin: ['', null] } }).project({ status: 1, stage: 1 });
+  let ops = [];
+  const moved = { hung_up: 0, not_interested: 0 };
+  for await (const c of cursor) {
+    const stage = matchStage(c.status);
+    if (stage !== 'hung_up' && stage !== 'not_interested') continue;
+    moved[stage] += 1;
+    ops.push({
+      updateOne: {
+        filter: { _id: c._id, stage: 'started' },
+        update: {
+          $set: { stage },
+          $push: { activities: { type: 'stage', source: 'import', fromStage: 'started', toStage: stage, message: `Moved from Started to ${stageLabel(stage)} (status "${c.status}") (import)`, at: new Date() } },
+        },
+      },
+    });
+    if (ops.length >= 500) {
+      await col.bulkWrite(ops, { ordered: false });
+      ops = [];
+    }
+  }
+  if (ops.length) await col.bulkWrite(ops, { ordered: false });
+  if (moved.hung_up || moved.not_interested) console.log(`[migrate] Started -> Hung Up: ${moved.hung_up}, Started -> Not Interested: ${moved.not_interested}`);
+}
+
 export async function runMigrations() {
   if (mongoose.connection.readyState !== 1) return;
   await callOutcomesToStages();
@@ -154,6 +187,7 @@ export async function runMigrations() {
   await contactCategories();
   await contactGeo();
   await inferPlaces();
+  await hungUpAndNotInterested();
 }
 
 // Keep the model import so the collection exists / indexes are registered before the first query.

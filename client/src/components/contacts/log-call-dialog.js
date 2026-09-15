@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 
 const KEEP = 'keep';
 // The call-result stages, offered as one-click buttons on top of the full stage list.
-const CALL_RESULT_STAGES = ['connected', 'voicemail', 'wrong_number'];
+const CALL_RESULT_STAGES = ['connected', 'voicemail', 'wrong_number', 'hung_up', 'not_interested'];
 
 // Conditional sections (follow-up note, booking) fade in where they appear.
 const REVEAL = 'motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 motion-safe:duration-200';
