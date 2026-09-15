@@ -46,14 +46,81 @@ const toCounts = (rows, keys, nullKey = 'none') => {
 
 // Read endpoints the whole team polls are memoised briefly (see lib/cache.js): one set of queries per
 // window serves every open dashboard. Short enough that a logged call shows within a refresh or two.
-const STATS_TTL = 10_000;
-const META_TTL = 60_000;
+export const STATS_TTL = 20_000;
 const DAILY_TTL = 20_000;
 const HISTORY_TTL = 60_000;
 
 statsRouter.get('/', async (req, res) => {
   res.json(await memo('stats', STATS_TTL, computeStats));
 });
+
+export { computeStats, DAILY_TTL };
+
+/**
+ * Every whole-collection count the dashboard needs, in ONE pass over the contacts: totals per stage,
+ * per priority and per sheet, the follow-up buckets, calls today, and the stages contacts entered
+ * today. As separate queries these were eleven collection scans; with the database a continent away
+ * that was the dashboard's whole cost. `$project` first so only the handful of fields each stage
+ * needs flows through the facet.
+ */
+function contactRollup({ today, tomorrow, week, localMidnight }) {
+  const inRange = (from, to) => ({ $and: [{ $ne: ['$followUp', null] }, { $gte: ['$followUp', from] }, { $lt: ['$followUp', to] }] });
+  return Contact.aggregate([
+    {
+      $project: {
+        _id: 0,
+        stage: 1,
+        priority: 1,
+        sheet: '$source.sheetName',
+        followUp: 1,
+        contactedToday: { $cond: [{ $gte: [{ $ifNull: ['$lastContactedAt', new Date(0)] }, localMidnight] }, 1, 0] },
+        // The stage this contact entered today and is still in ('' when it did not move today):
+        // moving one back out takes it off the count again, as before.
+        enteredToday: {
+          $cond: [
+            {
+              $gt: [
+                {
+                  $size: {
+                    $filter: {
+                      input: { $ifNull: ['$activities', []] },
+                      as: 'a',
+                      cond: { $and: [{ $eq: ['$$a.type', 'stage'] }, { $eq: ['$$a.toStage', '$stage'] }, { $gte: [{ $ifNull: ['$$a.at', new Date(0)] }, localMidnight] }] },
+                    },
+                  },
+                },
+                0,
+              ],
+            },
+            '$stage',
+            '',
+          ],
+        },
+      },
+    },
+    {
+      $facet: {
+        total: [{ $count: 'n' }],
+        byStage: [{ $group: { _id: '$stage', count: { $sum: 1 } } }],
+        byPriority: [{ $group: { _id: '$priority', count: { $sum: 1 } } }],
+        bySheet: [{ $group: { _id: '$sheet', count: { $sum: 1 } } }, { $sort: { count: -1 } }],
+        enteredToday: [{ $match: { enteredToday: { $ne: '' } } }, { $group: { _id: '$enteredToday', count: { $sum: 1 } } }],
+        totals: [
+          {
+            $group: {
+              _id: null,
+              contactedToday: { $sum: '$contactedToday' },
+              // `$lt` compares across types in an expression, so null follow-ups are excluded explicitly
+              overdue: { $sum: { $cond: [{ $and: [{ $ne: ['$followUp', null] }, { $lt: ['$followUp', today] }] }, 1, 0] } },
+              dueToday: { $sum: { $cond: [inRange(today, tomorrow), 1, 0] } },
+              dueWeek: { $sum: { $cond: [inRange(today, week), 1, 0] } },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+}
 
 async function computeStats() {
   const today = todayUtc();
@@ -63,68 +130,57 @@ async function computeStats() {
   const now = new Date();
   const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const localTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  // Contacts moved into a stage since midnight (by hand, drag, bulk, a logged call or a sheet sync) and still there:
-  // moving one back out takes it off the count again.
-  const enteredToday = (stage) => Contact.countDocuments({ stage, activities: { $elemMatch: { type: 'stage', toStage: stage, at: { $gte: localMidnight } } } });
-  const [total, byStage, bySheet, overdue, dueToday, dueWeek, upcomingBookings, dueFollowUps, recentActivity, recentImports, contactedToday, prospectsToday, byPriority, remindersOverdue, remindersToday, urgentOpen, voicemailToday, hungUpToday, notInterestedToday] =
-    await Promise.all([
-      Contact.countDocuments(),
-      Contact.aggregate([{ $group: { _id: '$stage', count: { $sum: 1 } } }]),
-      Contact.aggregate([{ $group: { _id: '$source.sheetName', count: { $sum: 1 } } }, { $sort: { count: -1 } }]),
-      Contact.countDocuments({ followUp: { $lt: today } }),
-      Contact.countDocuments({ followUp: { $gte: today, $lt: tomorrow } }),
-      Contact.countDocuments({ followUp: { $gte: today, $lt: week } }),
-      Contact.find({ 'booking.date': { $gte: today } })
-        .sort({ 'booking.date': 1, 'booking.time': 1 })
-        .limit(8)
-        .select('name companyName stage booking')
-        .lean(),
-      Contact.find({ followUp: { $lt: week } })
-        .sort({ followUp: 1 })
-        .limit(8)
-        .select('name companyName stage followUp followUpNote')
-        .lean(),
-      // Only the most recently touched contacts can hold the newest entries (any logged activity bumps
-      // updatedAt), so unwind 150 of them instead of every contact's whole history.
-      Contact.aggregate([
-        { $sort: { updatedAt: -1 } },
-        { $limit: 150 },
-        { $match: { activities: { $elemMatch: { type: { $ne: 'import' } } } } },
-        { $unwind: '$activities' },
-        { $match: { 'activities.type': { $ne: 'import' } } },
-        { $sort: { 'activities.at': -1 } },
-        { $limit: 12 },
-        { $project: { _id: 0, contactId: '$_id', name: 1, companyName: 1, activity: '$activities' } },
-      ]),
-      ImportBatch.find().sort({ createdAt: -1 }).limit(5).select('fileName totals status createdAt undoneAt').lean(),
-      Contact.countDocuments({ lastContactedAt: { $gte: localMidnight } }),
-      enteredToday('prospect'),
-      Contact.aggregate([{ $group: { _id: '$priority', count: { $sum: 1 } } }]),
-      Reminder.countDocuments({ done: false, at: { $lt: now } }),
-      Reminder.countDocuments({ done: false, at: { $gte: now, $lt: localTomorrow } }),
-      // High-priority contacts nobody is scheduled to touch: no follow-up, no open reminder.
-      Contact.aggregate([
-        { $match: { priority: { $in: ['urgent', 'high'] }, followUp: null, stage: { $nin: ['done', 'converted'] } } },
-        { $lookup: { from: 'reminders', let: { id: '$_id' }, pipeline: [{ $match: { $expr: { $and: [{ $eq: ['$contactId', '$$id'] }, { $eq: ['$done', false] }] } } }, { $limit: 1 }], as: 'open' } },
-        { $match: { open: { $size: 0 } } },
-        { $count: 'n' },
-      ]),
-      enteredToday('voicemail'),
-      enteredToday('hung_up'),
-      enteredToday('not_interested'),
-    ]);
+  const [rollup, upcomingBookings, dueFollowUps, recentActivity, recentImports, remindersOverdue, remindersToday, urgentOpen] = await Promise.all([
+    contactRollup({ today, tomorrow, week, localMidnight }),
+    Contact.find({ 'booking.date': { $gte: today } })
+      .sort({ 'booking.date': 1, 'booking.time': 1 })
+      .limit(8)
+      .select('name companyName stage booking')
+      .lean(),
+    Contact.find({ followUp: { $lt: week } })
+      .sort({ followUp: 1 })
+      .limit(8)
+      .select('name companyName stage followUp followUpNote')
+      .lean(),
+    // Only the most recently touched contacts can hold the newest entries (any logged activity bumps
+    // updatedAt), so unwind 150 of them instead of every contact's whole history.
+    Contact.aggregate([
+      { $sort: { updatedAt: -1 } },
+      { $limit: 150 },
+      { $match: { activities: { $elemMatch: { type: { $ne: 'import' } } } } },
+      { $unwind: '$activities' },
+      { $match: { 'activities.type': { $ne: 'import' } } },
+      { $sort: { 'activities.at': -1 } },
+      { $limit: 12 },
+      { $project: { _id: 0, contactId: '$_id', name: 1, companyName: 1, activity: '$activities' } },
+    ]),
+    ImportBatch.find().sort({ createdAt: -1 }).limit(5).select('fileName totals status createdAt undoneAt').lean(),
+    Reminder.countDocuments({ done: false, at: { $lt: now } }),
+    Reminder.countDocuments({ done: false, at: { $gte: now, $lt: localTomorrow } }),
+    // High-priority contacts nobody is scheduled to touch: no follow-up, no open reminder.
+    Contact.aggregate([
+      { $match: { priority: { $in: ['urgent', 'high'] }, followUp: null, stage: { $nin: ['done', 'converted'] } } },
+      { $lookup: { from: 'reminders', let: { id: '$_id' }, pipeline: [{ $match: { $expr: { $and: [{ $eq: ['$contactId', '$$id'] }, { $eq: ['$done', false] }] } } }, { $limit: 1 }], as: 'open' } },
+      { $match: { open: { $size: 0 } } },
+      { $count: 'n' },
+    ]),
+  ]);
+
+  const f = rollup[0] || {};
+  const totals = f.totals?.[0] || {};
+  const entered = Object.fromEntries((f.enteredToday || []).map((r) => [r._id, r.count]));
 
   return {
-    total,
-    byStage: toCounts(byStage, STAGE_KEYS, null),
-    byPriority: toCounts(byPriority.map((r) => ({ ...r, _id: r._id || null })), PRIORITY_KEYS, 'none'),
-    bySheet: bySheet.map((r) => ({ sheet: r._id || '(manual)', count: r.count })),
-    followUps: { overdue, today: dueToday, week: dueWeek },
+    total: f.total?.[0]?.n || 0,
+    byStage: toCounts(f.byStage || [], STAGE_KEYS, null),
+    byPriority: toCounts((f.byPriority || []).map((r) => ({ ...r, _id: r._id || null })), PRIORITY_KEYS, 'none'),
+    bySheet: (f.bySheet || []).map((r) => ({ sheet: r._id || '(manual)', count: r.count })),
+    followUps: { overdue: totals.overdue || 0, today: totals.dueToday || 0, week: totals.dueWeek || 0 },
     reminders: { overdue: remindersOverdue, today: remindersToday, unscheduledPriority: urgentOpen[0]?.n || 0 },
-    contactedToday,
-    prospectsToday,
+    contactedToday: totals.contactedToday || 0,
+    prospectsToday: entered.prospect || 0,
     // today's call results: contacts that entered the stage since midnight and are still in it
-    todayByStage: { prospect: prospectsToday, voicemail: voicemailToday, hung_up: hungUpToday, not_interested: notInterestedToday },
+    todayByStage: { prospect: entered.prospect || 0, voicemail: entered.voicemail || 0, hung_up: entered.hung_up || 0, not_interested: entered.not_interested || 0 },
     upcomingBookings,
     dueFollowUps,
     recentActivity,

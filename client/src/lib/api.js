@@ -41,11 +41,40 @@ export function getToken() {
 export function setToken(token) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    else {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+    }
   } catch {
     /* private mode */
   }
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_EVENT));
+}
+
+// The signed-in user, remembered alongside the token. On a reload the app renders from this straight
+// away and re-checks the session in the background, instead of holding the whole page behind one
+// round trip to the API. A token the server rejects still lands on the sign-in screen (api.js clears
+// it on a 401); nothing here grants access, the server checks every request.
+const USER_KEY = 'crm:user';
+
+/** The remembered user for `token` (`{ user, at }`), or null when there is none for it. */
+export function getCachedUser(token) {
+  try {
+    const raw = token && localStorage.getItem(USER_KEY);
+    const v = raw ? JSON.parse(raw) : null;
+    return v?.user && v.token === token ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setCachedUser(token, user) {
+  try {
+    if (token && user) localStorage.setItem(USER_KEY, JSON.stringify({ token, user, at: Date.now() }));
+    else localStorage.removeItem(USER_KEY);
+  } catch {
+    /* private mode */
+  }
 }
 
 async function request(path, { method = 'GET', body, formData, signal } = {}) {

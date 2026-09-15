@@ -202,7 +202,8 @@ contactsRouter.get('/', async (req, res) => {
   const sort = { [q.sort]: q.dir === 'asc' ? 1 : -1, _id: 1 };
   const [items, total] = await Promise.all([
     Contact.find(filter).sort(sort).skip((q.page - 1) * q.limit).limit(q.limit).select('-activities').lean(),
-    Contact.countDocuments(filter),
+    // An unfiltered list is every contact: read the collection's own count instead of scanning it.
+    Object.keys(filter).length ? Contact.countDocuments(filter) : Contact.estimatedDocumentCount(),
   ]);
   res.json({ items, total, page: q.page, limit: q.limit, pages: Math.max(1, Math.ceil(total / q.limit)) });
 });

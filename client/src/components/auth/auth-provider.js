@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, AUTH_EVENT, getToken, setToken } from '@/lib/api';
+import { api, AUTH_EVENT, getCachedUser, getToken, setCachedUser, setToken } from '@/lib/api';
 
 const AuthContext = createContext({ user: null, status: 'loading', login: async () => {}, logout: () => {}, refresh: async () => {}, setUser: () => {}, isAdmin: false });
 
@@ -29,13 +29,29 @@ export function AuthProvider({ children }) {
   const qc = useQueryClient();
   const token = useSyncExternalStore(subscribe, getToken, () => '');
   const hydrated = useHydrated();
-  const me = useQuery({ queryKey: meKey(token), queryFn: api.auth.me, enabled: Boolean(token), retry: false, staleTime: 5 * 60_000 });
+  // Seed from the remembered user so a reload renders at once and re-checks the session behind it.
+  const cached = useMemo(() => (hydrated ? getCachedUser(token) : null), [hydrated, token]);
+  const me = useQuery({
+    queryKey: meKey(token),
+    queryFn: api.auth.me,
+    enabled: Boolean(token),
+    retry: false,
+    staleTime: 5 * 60_000,
+    initialData: cached ? { user: cached.user } : undefined,
+    initialDataUpdatedAt: cached?.at,
+  });
+
+  // Keep the remembered user in step with what the API last said.
+  useEffect(() => {
+    if (me.data?.user) setCachedUser(token, me.data.user);
+  }, [token, me.data]);
 
   const login = useCallback(
     async (username, password) => {
       const { token: t, user } = await api.auth.login({ username, password });
       qc.clear(); // no data from a previous user
       qc.setQueryData(meKey(t), { user });
+      setCachedUser(t, user);
       setToken(t);
       return user;
     },

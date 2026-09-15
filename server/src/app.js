@@ -6,7 +6,9 @@ import { errorHandler, notFound } from './lib/errors.js';
 import { metaRouter } from './routes/meta.js';
 import { contactsRouter } from './routes/contacts.js';
 import { importsRouter } from './routes/imports.js';
-import { statsRouter } from './routes/stats.js';
+import { STATS_TTL, computeStats, statsRouter } from './routes/stats.js';
+import { META_TTL, computeMeta } from './routes/meta.js';
+import { startCacheWarming, warm } from './lib/cache.js';
 import { followupsRouter } from './routes/followups.js';
 import { sheetsRouter } from './routes/sheets.js';
 import { viewsRouter } from './routes/views.js';
@@ -34,6 +36,11 @@ export function createApp() {
   startWriteback();
   startPush();
   startDailyReports();
+  // The dashboard's counts and the filter lists are recomputed in the background, so a page load
+  // reads them from memory instead of waiting on the database (which may be a continent away).
+  warm('stats', STATS_TTL, computeStats);
+  warm('meta', META_TTL, computeMeta);
+  startCacheWarming();
   loadSecret()
     .then(() => seedUsers())
     .catch((err) => console.error('[auth] start-up failed:', err.message));

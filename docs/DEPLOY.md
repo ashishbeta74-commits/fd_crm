@@ -82,3 +82,28 @@ moments queued requests for 8 s or more. What helps, most effective first:
    entries are indexed by time, the per-request user lookup behind the session token is cached for 30 s,
    and pages poll once a minute instead of every 15-30 s (a tab that regains focus refreshes immediately
    regardless).
+
+### What the code now does (2026-09-16)
+
+Measured against the live Render service, a cold `GET /api/stats` took **7.3 s** and `/api/meta` **4.8 s**,
+while a bare `/api/health` (one database ping) took 0.55 s. So two things were in play: too many
+collection scans per request, and every one of them crossing the Pacific.
+
+- **One pass instead of eleven.** `/api/stats` ran 19 queries, eleven of them full scans of the contacts
+  collection (counts per stage, per priority, per sheet, the follow-up buckets, calls today, and the four
+  "entered today" counts). They are now a single `$facet` aggregation over a projected document, so the
+  collection is read once. `/api/meta` went from six scans to one the same way. Every number was
+  compared against the old queries before the change shipped.
+- **Nothing waits for the database.** The cache serves a value immediately and refreshes behind it
+  (stale-while-revalidate), and a background timer keeps `stats` and `meta` warm, so a page load reads
+  them from the API's memory.
+- **The session check is off the critical path.** The browser used to render nothing until
+  `GET /api/auth/me` came back, so every page load paid one full round trip before it even asked for its
+  own data. The signed-in user is now remembered next to the token, the app renders from it at once and
+  re-checks the session in the background. A token the server rejects still lands on the sign-in screen.
+- Indexes for the list's sorts (`createdAt`/`updatedAt`/`lastContactedAt` with `_id`), and an unfiltered
+  list reads the collection's own count instead of scanning.
+
+What is left is the ~0.5 s floor on every request: India → Oregon and Oregon → Mumbai. Only moving the
+API next to the database fixes that (step 2 above). Responses are already compressed by Render
+(29 KB of contacts travels as 2.6 KB), so payload size is not worth chasing.

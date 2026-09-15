@@ -129,8 +129,10 @@ ContactSchema.index({ 'booking.date': 1 });
 ContactSchema.index({ 'source.sheetName': 1 });
 ContactSchema.index({ 'source.batchId': 1 });
 ContactSchema.index({ importBatchIds: 1 });
-ContactSchema.index({ updatedAt: -1 });
-ContactSchema.index({ createdAt: 1 }); // the list's default order
+// The list sorts by a column then `_id`, so the indexes carry both and the sort needs no extra pass.
+ContactSchema.index({ updatedAt: -1, _id: 1 });
+ContactSchema.index({ createdAt: 1, _id: 1 }); // the list's default order
+ContactSchema.index({ lastContactedAt: -1, _id: 1 }); // "calls today" and the last-contact sort
 // Daily progress reports and "recent activity" pick history entries by time.
 ContactSchema.index({ 'activities.at': -1 });
 ContactSchema.index({ 'linkedin.stage': 1 });

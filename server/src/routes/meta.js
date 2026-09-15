@@ -6,22 +6,32 @@ import { memo } from '../lib/cache.js';
 
 export const metaRouter = Router();
 
-// Sheet names, tag and place counts change only on imports and edits; one aggregation a minute serves everyone.
+// Sheet names, tag and place counts change only on imports and edits, so one aggregation serves
+// everyone; it is kept warm in the background (lib/cache.js), so no request waits for it.
+export const META_TTL = 60_000;
 metaRouter.get('/', async (req, res) => {
-  res.json(await memo('meta', 60_000, computeMeta));
+  res.json(await memo('meta', META_TTL, computeMeta));
 });
 
-async function computeMeta() {
-  const placeCounts = (field) => Contact.aggregate([{ $match: { [field]: { $nin: ['', null] } } }, { $group: { _id: `$${field}`, count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }, { $limit: 2000 }]);
-  const [sheets, tagRows, countries, states, cities, leadQualities] = await Promise.all([
-    Contact.distinct('source.sheetName'),
-    Contact.aggregate([{ $unwind: '$tags' }, { $group: { _id: '$tags', count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }, { $limit: 500 }]),
-    placeCounts('country'),
-    placeCounts('state'),
-    placeCounts('city'),
-    placeCounts('leadQuality'),
+export async function computeMeta() {
+  // One pass over the contacts for every filter list (it used to be six separate collection scans).
+  const counts = (field, limit) => [{ $match: { [field]: { $nin: ['', null] } } }, { $group: { _id: `$${field}`, count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }, { $limit: limit }];
+  const [facet] = await Contact.aggregate([
+    { $project: { _id: 0, sheet: '$source.sheetName', tags: 1, country: 1, state: 1, city: 1, leadQuality: 1 } },
+    {
+      $facet: {
+        sheets: [{ $group: { _id: '$sheet' } }],
+        tags: [{ $unwind: '$tags' }, { $group: { _id: '$tags', count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }, { $limit: 500 }],
+        countries: counts('country', 2000),
+        states: counts('state', 2000),
+        cities: counts('city', 2000),
+        leadQualities: counts('leadQuality', 2000),
+      },
+    },
   ]);
-  const places = (rows) => rows.map((r) => ({ name: r._id, count: r.count }));
+  const sheets = (facet?.sheets || []).map((r) => r._id);
+  const tagRows = facet?.tags || [];
+  const places = (rows) => (rows || []).map((r) => ({ name: r._id, count: r.count }));
   return {
     stages: STAGES,
     priorities: PRIORITIES,
@@ -31,12 +41,12 @@ async function computeMeta() {
     sheets: sheets.filter(Boolean).sort(),
     tags: tagRows.map((t) => ({ tag: t._id, count: t.count })),
     // Place names with contact counts for the Country / State / City filters.
-    countries: places(countries),
-    states: places(states),
-    cities: places(cities),
+    countries: places(facet?.countries),
+    states: places(facet?.states),
+    cities: places(facet?.cities),
     // Suggested presets first, then every label in use with its count ("Other…" values included).
     leadQualities: LEAD_QUALITIES,
-    leadQualityCounts: places(leadQualities),
+    leadQualityCounts: places(facet?.leadQualities),
     db: getDbUri(),
   };
 }
