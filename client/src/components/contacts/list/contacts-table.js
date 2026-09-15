@@ -17,6 +17,7 @@ import { ContactActionsMenu } from '@/components/contacts/contact-actions-menu';
 import { DEFAULT_DIR, DEFAULT_SORT } from '@/components/contacts/list/contact-filters';
 import { LinkedInIconLink } from '@/components/contacts/list/linkedin-link';
 import { FROZEN_TABLE_CLASS, FrozenResizeHandle, frozenCell, frozenHead, useFrozenColumns } from '@/components/ui/frozen-columns';
+import { StickyScrollbar, useDragScroll } from '@/components/ui/mouse-scroll';
 
 const COLUMNS = [
   { key: 'name', label: 'Name', sort: 'name' },
@@ -220,9 +221,12 @@ export function ContactsTable({
   const tableRef = useRef(null);
 
   useFrozenColumns(tableRef, [items, loading]);
+  // Mouse users: drag the table sideways, and a scrollbar pinned to the bottom of the window while the table is taller than it.
+  useDragScroll(tableRef, [items, loading]);
 
   return (
     <div className={cn('relative overflow-hidden rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
+      <StickyScrollbar tableRef={tableRef} deps={[items, loading]} />
       {/* The Table component wraps itself in an overflow-x-auto container; the min width keeps columns readable. */}
       <Table ref={tableRef} className={cn('min-w-[1560px]', FROZEN_TABLE_CLASS)}>
         <TableHeader>
