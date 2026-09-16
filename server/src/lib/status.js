@@ -25,6 +25,9 @@ export function matchStage(text) {
   // "not interested" / "dont need" must not read as "interested" (prospect): it is its own stage, checked first.
   const notInterested = STAGE_PATTERNS.find(([key]) => key === 'not_interested')[1];
   if (notInterested.test(s)) return 'not_interested';
+  // "Not called" / "not contacted" mean nobody has touched the row yet, but each contains a word the
+  // Started pattern matches ("called", "contacted", "start"), so the negations are checked first.
+  if (/\bnot\s*(yet\s*)?(called|contacted|started|reached|attempted|dialled|dialed)\b|\buncontacted\b|\bto\s*be\s*called\b/.test(s)) return 'new';
   for (const [key, rx] of STAGE_PATTERNS) if (rx.test(s)) return key;
   return null;
 }
