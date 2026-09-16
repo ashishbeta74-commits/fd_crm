@@ -17,6 +17,7 @@ export const TEAM = [
   { userId: 'FD-008', displayName: 'Sukhpreet', username: 'sukhpreet' },
   { userId: 'FD-009', displayName: 'Ashish', username: 'ashish' },
   { userId: 'FD-010', displayName: 'Sameer', username: 'sameer' },
+  { userId: 'FD-011', displayName: 'Rahul', username: 'rahul' },
 ];
 
 const PASSWORD_FILE = path.resolve(process.cwd(), 'initial-passwords.txt');
