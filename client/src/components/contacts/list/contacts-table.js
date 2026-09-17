@@ -94,7 +94,7 @@ function SkeletonRow() {
   );
 }
 
-function ContactRow({ contact: c, selected, onToggle, onStageChange, stagePending }) {
+function ContactRow({ contact: c, selected, onToggle, onStageChange }) {
   const email = c.email || c.primaryEmail;
   // contactL1 is the LinkedIn URL, not a phone: fall back to the company number instead.
   const phone = c.contactMain || c.companyNo;
@@ -151,7 +151,9 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange, stagePendin
         {/* Log call sits beside the stage: it is the action the team reaches for most. */}
         <div className="flex items-center gap-1.5">
           {/* The trigger shows the stage label itself, so no tooltip here. */}
-          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} disabled={stagePending} className="w-36" />
+          {/* Not disabled while a save is in flight: the new stage is already showing (the edit is
+              applied to the cache first), so freezing every row's dropdown for a second only gets in the way. */}
+          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} className="w-36" />
           <LogCallButton contact={c} compact />
         </div>
       </TableCell>
@@ -230,7 +232,6 @@ export function ContactsTable({
   onToggle,
   onTogglePage,
   onStageChange,
-  stagePending = false,
 }) {
   const pageIds = items.map((c) => c._id);
   const selectedOnPage = pageIds.filter((id) => selected.has(id)).length;
@@ -289,7 +290,6 @@ export function ContactsTable({
                   selected={selected.has(c._id)}
                   onToggle={onToggle}
                   onStageChange={onStageChange}
-                  stagePending={stagePending}
                 />
               ))}
         </TableBody>

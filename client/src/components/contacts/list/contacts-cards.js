@@ -29,7 +29,7 @@ function CardSkeleton() {
   );
 }
 
-function ContactCard({ contact: c, selected, onToggle, onStageChange, stagePending }) {
+function ContactCard({ contact: c, selected, onToggle, onStageChange }) {
   const email = c.email || c.primaryEmail;
   const phone = c.contactMain || c.companyNo;
   const overdue = Boolean(c.followUp) && daysFromToday(c.followUp) < 0;
@@ -76,7 +76,7 @@ function ContactCard({ contact: c, selected, onToggle, onStageChange, stagePendi
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         {/* Log call sits beside the stage here too, matching the table. */}
         <div className="flex items-center gap-1.5">
-          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} disabled={stagePending} className="w-40" />
+          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} className="w-40" />
           <LogCallButton contact={c} compact />
         </div>
         <div className="grid justify-items-end gap-0.5">
@@ -106,7 +106,7 @@ function ContactCard({ contact: c, selected, onToggle, onStageChange, stagePendi
 }
 
 /** Phone / tablet layout of the contacts list: one card per contact instead of a 13-column table. */
-export function ContactsCards({ items = [], loading = false, dimmed = false, selected = EMPTY_SET, onToggle, onStageChange, stagePending = false }) {
+export function ContactsCards({ items = [], loading = false, dimmed = false, selected = EMPTY_SET, onToggle, onStageChange }) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-3" aria-busy>
@@ -119,7 +119,7 @@ export function ContactsCards({ items = [], loading = false, dimmed = false, sel
   return (
     <ul className={cn('grid grid-cols-1 gap-3 transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={dimmed || undefined}>
       {items.map((c) => (
-        <ContactCard key={c._id} contact={c} selected={selected.has(c._id)} onToggle={onToggle} onStageChange={onStageChange} stagePending={stagePending} />
+        <ContactCard key={c._id} contact={c} selected={selected.has(c._id)} onToggle={onToggle} onStageChange={onStageChange} />
       ))}
     </ul>
   );

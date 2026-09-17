@@ -70,7 +70,7 @@ export function ContactsView() {
     refetchInterval: LIVE_MS,
   });
   const selection = useSelection(FILTER_KEYS.map((key) => params[key]).join('|'));
-  const { changeStage, stageDialog, pending: stagePending } = useStageChange();
+  const { changeStage, stageDialog } = useStageChange();
   // /contacts?new=1 (dashboard shortcut) opens the "Add contact" dialog straight away.
   const searchParams = useSearchParams();
   const [adding, setAdding] = useState(() => searchParams.get('new') === '1');
@@ -148,7 +148,7 @@ export function ContactsView() {
       <div className={`flex flex-col gap-4 ${ENTER}`}>
         {/* Cards on phones / small tablets, the frozen-column table from md up. */}
         <div className="md:hidden">
-          <ContactsCards items={items} dimmed={isPlaceholderData} selected={selection.selected} onToggle={selection.toggle} onStageChange={onStageChange} stagePending={stagePending} />
+          <ContactsCards items={items} dimmed={isPlaceholderData} selected={selection.selected} onToggle={selection.toggle} onStageChange={onStageChange} />
         </div>
         <div className="hidden md:block">
           <ContactsTable
@@ -161,7 +161,6 @@ export function ContactsView() {
             onToggle={selection.toggle}
             onTogglePage={selection.toggleMany}
             onStageChange={onStageChange}
-            stagePending={stagePending}
           />
         </div>
         <ContactsPagination
