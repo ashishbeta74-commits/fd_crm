@@ -87,8 +87,15 @@ duplicatesRouter.get('/', async (req, res) => {
   if (!criteria.length) throw new HttpError(400, `by must be one or more of ${CRITERIA.join(', ')}`);
   const match = {};
   if (q.sheet) match['source.sheetName'] = q.sheet;
-  const contacts = await Contact.aggregate([{ $match: match }, { $project: summaryProject }, { $limit: MAX_SCAN }]);
-  const ignored = new Set((await DuplicateIgnore.find().select('pair').lean()).map((x) => x.pair));
+  // Two passes: match on the six fields the criteria actually use (small documents, so the whole
+  // collection crosses the wire cheaply), then read the full details only for the contacts that
+  // turned out to be in a group. Pulling all ~20 fields - `notes` among them - for every contact
+  // measured 17 s against the live API.
+  const [contacts, ignoredRows] = await Promise.all([
+    Contact.aggregate([{ $match: match }, { $project: { name: 1, companyName: 1, email: 1, primaryEmail: 1, secondaryEmail: 1, contactMain: 1 } }, { $limit: MAX_SCAN }]),
+    DuplicateIgnore.find().select('pair').lean(),
+  ]);
+  const ignored = new Set(ignoredRows.map((x) => x.pair));
 
   const parent = contacts.map((_, i) => i);
   const find = (i) => {
@@ -135,8 +142,16 @@ duplicatesRouter.get('/', async (req, res) => {
     if (!groups.has(r)) groups.set(r, []);
     groups.get(r).push(c);
   });
+  // Second pass: the full summary for the contacts that are actually in a group.
+  const memberIds = [];
+  for (const members of groups.values()) if (members.length > 1) for (const m of members) memberIds.push(m._id);
+  const detailed = memberIds.length ? await Contact.aggregate([{ $match: { _id: { $in: memberIds } } }, { $project: summaryProject }]) : [];
+  const byId = new Map(detailed.map((c) => [String(c._id), c]));
+
   let items = [];
-  for (const [root, members] of groups) {
+  for (const [root, light] of groups) {
+    if (light.length < 2) continue;
+    const members = light.map((m) => byId.get(String(m._id))).filter(Boolean);
     if (members.length < 2) continue;
     const why = [...(reasons.get(root) || [])].sort((a, b) => CONFIDENCE[b] - CONFIDENCE[a]);
     items.push({ key: String(members[0]._id), reasons: why, confidence: CONFIDENCE[why[0]] || 0, suggestedPrimaryId: suggestPrimary(members)._id, contacts: members });

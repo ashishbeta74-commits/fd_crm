@@ -42,8 +42,28 @@ export function shiftDay(key, n) {
 
 // The team also logs calls in the linked Google Sheets; a sync writes those as `call` entries dated to the
 // sheet's calling date (noon), so they count as that day's calls, like the hero's "Calls today" does.
-// Only the "Imported from …" bookkeeping entries are left out.
-const APP_ACTIVITY = { 'activities.type': { $ne: 'import' } };
+// Only the "Imported from …" bookkeeping entries are left out (the `$ne: 'import'` below).
+
+/**
+ * One document per history entry inside a window, as `a`. The array is cut down with `$filter`
+ * *before* `$unwind`, so a contact with hundreds of entries contributes only the few in range
+ * instead of streaming its whole history through the pipeline.
+ */
+const entriesInWindow = (start, end) => [
+  { $match: { 'activities.at': { $gte: start, $lt: end } } },
+  {
+    $project: {
+      a: {
+        $filter: {
+          input: { $ifNull: ['$activities', []] },
+          as: 'a',
+          cond: { $and: [{ $gte: [{ $ifNull: ['$$a.at', new Date(0)] }, start] }, { $lt: [{ $ifNull: ['$$a.at', new Date(0)] }, end] }, { $ne: ['$$a.type', 'import'] }] },
+        },
+      },
+    },
+  },
+  { $unwind: '$a' },
+];
 
 const emptyStages = () => Object.fromEntries(STAGE_KEYS.map((k) => [k, 0]));
 
@@ -52,12 +72,7 @@ export async function computeMetrics(range) {
   const { start, end } = range;
   const inDay = { $gte: start, $lt: end };
   const [rows, created, imports, remindersDone, remindersSet] = await Promise.all([
-    Contact.aggregate([
-      { $match: { 'activities.at': inDay } },
-      { $unwind: '$activities' },
-      { $match: { 'activities.at': inDay, ...APP_ACTIVITY } },
-      { $group: { _id: { type: '$activities.type', toStage: '$activities.toStage' }, count: { $sum: 1 }, contacts: { $addToSet: '$_id' } } },
-    ]),
+    Contact.aggregate([...entriesInWindow(start, end), { $group: { _id: { type: '$a.type', toStage: '$a.toStage' }, count: { $sum: 1 }, contacts: { $addToSet: '$_id' } } }]),
     Contact.countDocuments({ createdAt: inDay }),
     ImportBatch.find({ createdAt: inDay, undoneAt: null }).select('totals status').lean(),
     Reminder.countDocuments({ done: true, doneAt: inDay }),
@@ -169,14 +184,11 @@ export async function perDay(fromKey, toKey) {
   const from = dayRange(fromKey);
   const to = dayRange(toKey);
   if (!from || !to || fromKey > toKey) return [];
-  const inSpan = { $gte: from.start, $lt: to.end };
   const rows = await Contact.aggregate([
-    { $match: { 'activities.at': inSpan } },
-    { $unwind: '$activities' },
-    { $match: { 'activities.at': inSpan, ...APP_ACTIVITY } },
+    ...entriesInWindow(from.start, to.end),
     {
       $group: {
-        _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$activities.at', timezone: TIME_ZONE } }, type: '$activities.type', toStage: '$activities.toStage' },
+        _id: { day: { $dateToString: { format: '%Y-%m-%d', date: '$a.at', timezone: TIME_ZONE } }, type: '$a.type', toStage: '$a.toStage' },
         count: { $sum: 1 },
         contacts: { $addToSet: '$_id' },
       },

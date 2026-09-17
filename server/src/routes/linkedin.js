@@ -165,59 +165,123 @@ function periodRange(period, from, to) {
   }
 }
 
+// A date / string field that carries a value, and "count the rows where this is true".
+const isSet = (p) => ({ $ne: [{ $ifNull: [p, null] }, null] });
+const isText = (p) => ({ $not: [{ $in: [{ $ifNull: [p, ''] }, ['', null]] }] });
+const tally = (cond) => ({ $sum: { $cond: [cond, 1, 0] } });
+
+/**
+ * Every number the LinkedIn dashboard shows, counted inside the database in one pass.
+ * It used to read each contact's whole `linkedin` sub-document into the API and count in JavaScript:
+ * ~5,000 documents crossing the world on every page load, which measured 20 s against the live API.
+ */
+async function linkedinRollup({ filter, range, today, week }) {
+  // `$literal`, because a bare `true` in $project means "include this field", not the value true.
+  const inView = range
+    ? { $and: [isSet('$linkedin.dateFollowed'), { $gte: ['$linkedin.dateFollowed', range[0]] }, { $lt: ['$linkedin.dateFollowed', range[1]] }] }
+    : { $literal: true };
+  const open = { $ne: [{ $ifNull: ['$l.closed', false] }, true] };
+  const hasNext = isSet('$l.nextActionDate');
+  const isWon = { $eq: [{ $ifNull: ['$l.stage', 'identified'] }, 'client_won'] };
+  const value = { $ifNull: ['$l.monthlyValue', 0] };
+  const [f] = await Contact.aggregate([
+    { $match: filter },
+    { $project: { _id: 0, l: '$linkedin', inView } },
+    {
+      $facet: {
+        total: [{ $count: 'n' }],
+        view: [
+          { $match: { inView: true } },
+          {
+            $group: {
+              _id: null,
+              prospects: { $sum: 1 },
+              followed: tally(isSet('$l.dateFollowed')),
+              requests: tally(isSet('$l.requestSentAt')),
+              accepted: tally({ $or: [isSet('$l.acceptedAt'), { $in: [{ $ifNull: ['$l.connectionStatus', ''] }, ['accepted', 'already_connected']] }] }),
+              replies: tally(isSet('$l.firstReplyAt')),
+              needs: tally({ $or: [isSet('$l.needAt'), isText('$l.need')] }),
+              offers: tally(isSet('$l.offerSentAt')),
+              trials: tally(isSet('$l.trialRideDate')),
+              won: tally({ $or: [isSet('$l.convertedDate'), isWon] }),
+              // a won prospect counts its value as won, never as open pipeline
+              wonValue: { $sum: { $cond: [isWon, value, 0] } },
+              openValue: { $sum: { $cond: [{ $and: [{ $not: isWon }, open] }, value, 0] } },
+              overdue: tally({ $and: [open, hasNext, { $lt: ['$l.nextActionDate', today] }] }),
+              dueWeek: tally({ $and: [open, hasNext, { $gte: ['$l.nextActionDate', today] }, { $lt: ['$l.nextActionDate', week] }] }),
+              noNext: tally({ $and: [open, { $eq: [{ $ifNull: ['$l.active', false] }, true] }, { $not: hasNext }] }),
+              notFollowed: tally({ $and: [open, { $not: isSet('$l.dateFollowed') }] }),
+            },
+          },
+        ],
+        byStage: [{ $match: { inView: true } }, { $group: { _id: { $ifNull: ['$l.stage', 'identified'] }, count: { $sum: 1 } } }],
+        byPersona: [{ $match: { inView: true, 'l.persona': { $nin: ['', null] } } }, { $group: { _id: '$l.persona', count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }],
+      },
+    },
+  ]);
+  const v = f?.view?.[0] || {};
+  const byStage = Object.fromEntries(LI_STAGE_KEYS.map((k) => [k, 0]));
+  const byGroup = Object.fromEntries(LI_GROUPS.map((g) => [g.key, 0]));
+  for (const r of f?.byStage || []) {
+    byStage[r._id] = (byStage[r._id] || 0) + r.count;
+    byGroup[LI_STAGES.find((s) => s.key === r._id)?.group || 'warmup'] += r.count;
+  }
+  return {
+    totalWithUrl: f?.total?.[0]?.n || 0,
+    prospects: v.prospects || 0,
+    followed: v.followed || 0,
+    requests: v.requests || 0,
+    accepted: v.accepted || 0,
+    replies: v.replies || 0,
+    needs: v.needs || 0,
+    offers: v.offers || 0,
+    trials: v.trials || 0,
+    won: v.won || 0,
+    wonValue: v.wonValue || 0,
+    openValue: v.openValue || 0,
+    overdue: v.overdue || 0,
+    dueWeek: v.dueWeek || 0,
+    noNext: v.noNext || 0,
+    notFollowed: v.notFollowed || 0,
+    byStage,
+    byGroup,
+    byPersona: (f?.byPersona || []).map((r) => ({ persona: r._id, count: r.count })),
+  };
+}
+
 linkedinRouter.get('/stats', async (req, res) => {
   const q = z.object({ period: z.enum(PERIODS).default('all'), from: z.string().optional(), to: z.string().optional(), scope: z.enum(['url', 'all']).default('url') }).parse(req.query);
   const range = periodRange(q.period, q.from, q.to);
   const filter = q.scope === 'url' ? HAS_URL : {};
-  const docs = await Contact.find(filter).select('linkedin priority').lean();
   const today = todayUtc();
   const week = addDays(today, 7);
-  const inView = docs.filter((c) => {
-    if (!range) return true;
-    const d = c.linkedin?.dateFollowed;
-    return d && new Date(d) >= range[0] && new Date(d) < range[1];
-  });
-  const li = (c) => c.linkedin || {};
-  const count = (fn) => inView.filter((c) => fn(li(c))).length;
-  const followed = count((l) => l.dateFollowed);
-  const requests = count((l) => l.requestSentAt);
-  const accepted = count((l) => l.acceptedAt || l.connectionStatus === 'accepted' || l.connectionStatus === 'already_connected');
-  const replies = count((l) => l.firstReplyAt);
-  const needs = count((l) => l.needAt || l.need);
-  const offers = count((l) => l.offerSentAt);
-  const trials = count((l) => l.trialRideDate);
-  const won = count((l) => l.convertedDate || l.stage === 'client_won');
+  const {
+    totalWithUrl,
+    prospects,
+    followed,
+    requests,
+    accepted,
+    replies,
+    needs,
+    offers,
+    trials,
+    won,
+    wonValue,
+    openValue,
+    overdue,
+    dueWeek,
+    noNext,
+    notFollowed,
+    byStage,
+    byGroup,
+    byPersona,
+  } = await linkedinRollup({ filter, range, today, week });
   const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0);
-  const byStage = Object.fromEntries(LI_STAGE_KEYS.map((k) => [k, 0]));
-  const byGroup = Object.fromEntries(LI_GROUPS.map((g) => [g.key, 0]));
-  const byPersona = {};
-  let wonValue = 0;
-  let openValue = 0;
-  let overdue = 0;
-  let dueWeek = 0;
-  let noNext = 0;
-  let notFollowed = 0;
-  for (const c of inView) {
-    const l = li(c);
-    const stage = l.stage || 'identified';
-    byStage[stage] = (byStage[stage] || 0) + 1;
-    const def = LI_STAGES.find((s) => s.key === stage);
-    byGroup[def?.group || 'warmup'] += 1;
-    if (l.persona) byPersona[l.persona] = (byPersona[l.persona] || 0) + 1;
-    if (stage === 'client_won') wonValue += l.monthlyValue || 0;
-    else if (!l.closed && l.monthlyValue) openValue += l.monthlyValue;
-    if (!l.closed) {
-      if (l.nextActionDate && new Date(l.nextActionDate) < today) overdue += 1;
-      else if (l.nextActionDate && new Date(l.nextActionDate) < week) dueWeek += 1;
-      if (l.active && !l.nextActionDate) noNext += 1;
-      if (!l.dateFollowed) notFollowed += 1;
-    }
-  }
   res.json({
     period: q.period,
     range: range ? { from: isoDate(range[0]), to: isoDate(addDays(range[1], -1)) } : null,
-    prospects: inView.length,
-    totalWithUrl: docs.length,
+    prospects,
+    totalWithUrl,
     followed,
     requests,
     accepted,
@@ -228,7 +292,7 @@ linkedinRouter.get('/stats', async (req, res) => {
     offers,
     trials,
     won,
-    winRate: pct(won, inView.length),
+    winRate: pct(won, prospects),
     wonMonthlyValue: wonValue,
     openPipelineValue: openValue,
     overdue,
@@ -237,9 +301,7 @@ linkedinRouter.get('/stats', async (req, res) => {
     notFollowed,
     byStage,
     byGroup,
-    byPersona: Object.entries(byPersona)
-      .sort((a, b) => b[1] - a[1])
-      .map(([persona, n]) => ({ persona, count: n })),
+    byPersona,
   });
 });
 

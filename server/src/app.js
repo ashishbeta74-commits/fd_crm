@@ -21,7 +21,7 @@ import { getDbUri } from './config/db.js';
 import { startAutoSync } from './services/sync.js';
 import { startWriteback } from './services/writeback.js';
 import { startPush } from './services/push.js';
-import { startDailyReports } from './services/dailyReport.js';
+import { dayKey, getReport, history, startDailyReports } from './services/dailyReport.js';
 import { pushRouter } from './routes/push.js';
 import { seedTemplates } from './services/emailTemplates.js';
 import { seedScripts } from './services/scripts.js';
@@ -40,6 +40,9 @@ export function createApp() {
   // reads them from memory instead of waiting on the database (which may be a continent away).
   warm('stats', STATS_TTL, computeStats);
   warm('meta', META_TTL, computeMeta);
+  // the dashboard's day strip and today's report: both are on every dashboard load
+  warm('history:14', 60_000, () => history(14));
+  warm(`daily:${dayKey()}`, 20_000, () => getReport(dayKey()));
   startCacheWarming();
   loadSecret()
     .then(() => seedUsers())
