@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarMinus, CalendarPlus, ExternalLink, Mail, MoreHorizontal, Pencil, Phone, StickyNote, Trash2 } from 'lucide-react';
+import { CalendarMinus, CalendarPlus, ExternalLink, Mail, MoreHorizontal, Pencil, StickyNote, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SendEmailDialog } from '@/components/email/send-email-dialog';
 import { AddFollowUpDialog } from '@/components/followups/add-followup-dialog';
@@ -16,13 +16,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ContactDialog } from '@/components/contacts/contact-dialog';
-import { LogCallDialog, NoteDialog } from '@/components/contacts/log-call-dialog';
+import { NoteDialog } from '@/components/contacts/log-call-dialog';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useDeleteContact, useRemoveLastFollowUp } from '@/hooks/use-contact-mutations';
 import { cn } from '@/lib/utils';
 
 /**
- * "..." menu with Log call / Add follow-up / Add note / Email / Edit / Open / Delete, owning its dialogs.
+ * "..." menu with Add follow-up / Add note / Email / Edit / Open / Delete, owning its dialogs.
+ * Log call is not here: it has its own button beside the stage (see LogCallButton).
  * Pass `showOpen={false}` on the detail page. `onDeleted` fires after a successful delete.
  */
 export function ContactActionsMenu({ contact, showOpen = true, onDeleted, align = 'end', triggerClassName, trigger }) {
@@ -57,9 +58,7 @@ export function ContactActionsMenu({ contact, showOpen = true, onDeleted, align 
           </Tooltip>
         )}
         <DropdownMenuContent align={align}>
-          <DropdownMenuItem onSelect={() => setDialog('call')}>
-            <Phone /> Log call
-          </DropdownMenuItem>
+          {/* "Log call" moved out of this menu: it now sits beside the stage in the list and cards. */}
           <DropdownMenuItem onSelect={() => setDialog('followup')}>
             <CalendarPlus /> Add follow-up
           </DropdownMenuItem>
@@ -89,7 +88,6 @@ export function ContactActionsMenu({ contact, showOpen = true, onDeleted, align 
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {dialog === 'call' ? <LogCallDialog key={`call-${contact._id}`} contact={contact} open onOpenChange={(v) => !v && close()} /> : null}
       {dialog === 'followup' ? <AddFollowUpDialog key={`followup-${contact._id}`} contact={contact} open onOpenChange={(v) => !v && close()} /> : null}
       {dialog === 'note' ? <NoteDialog key={`note-${contact._id}`} contact={contact} open onOpenChange={(v) => !v && close()} /> : null}
       {dialog === 'email' ? <SendEmailDialog key={`email-${contact._id}`} contact={contact} open onOpenChange={(v) => !v && close()} /> : null}

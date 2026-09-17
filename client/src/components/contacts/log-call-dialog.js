@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Phone } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -164,6 +164,37 @@ export function LogCallDialog({ contact, open, onOpenChange, onSaved }) {
 }
 
 /** Plain note dialog (POST activities type=note). */
+/**
+ * "Log call" button + its dialog, for the contact lists. It sits next to the stage control (logging a
+ * call is the thing the team does most, so it is one click rather than buried in the "..." menu).
+ * `compact` renders just the phone icon with a tooltip, for the table's stage cell.
+ */
+export function LogCallButton({ contact, compact = false, className, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const button = compact ? (
+    <Button variant="outline" size="icon-sm" className={cn('shrink-0', className)} onClick={() => setOpen(true)} aria-label={`Log a call with ${contact.name || 'this contact'}`}>
+      <Phone />
+    </Button>
+  ) : (
+    <Button variant="outline" size="sm" className={className} onClick={() => setOpen(true)}>
+      <Phone /> Log call
+    </Button>
+  );
+  return (
+    <>
+      {compact ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipContent>Log call</TooltipContent>
+        </Tooltip>
+      ) : (
+        button
+      )}
+      {open ? <LogCallDialog key={contact._id} contact={contact} open onOpenChange={(v) => !v && setOpen(false)} onSaved={onSaved} /> : null}
+    </>
+  );
+}
+
 export function NoteDialog({ contact, open, onOpenChange, onSaved }) {
   const log = useLogActivity();
   const [message, setMessage] = useState('');

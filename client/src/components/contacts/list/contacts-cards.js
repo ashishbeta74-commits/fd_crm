@@ -10,6 +10,7 @@ import { CategoryBadge, LeadQualityBadge, PriorityBadge, TagList } from '@/compo
 import { AddFollowUpButton, RemoveFollowUpButton } from '@/components/followups/add-followup-dialog';
 import { AddBookingButton } from '@/components/contacts/add-booking-button';
 import { StageSelect } from '@/components/contacts/stage-controls';
+import { LogCallButton } from '@/components/contacts/log-call-dialog';
 import { ContactActionsMenu } from '@/components/contacts/contact-actions-menu';
 import { LinkedInIconLink } from '@/components/contacts/list/linkedin-link';
 
@@ -73,7 +74,11 @@ function ContactCard({ contact: c, selected, onToggle, onStageChange, stagePendi
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} disabled={stagePending} className="w-40" />
+        {/* Log call sits beside the stage here too, matching the table. */}
+        <div className="flex items-center gap-1.5">
+          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} disabled={stagePending} className="w-40" />
+          <LogCallButton contact={c} compact />
+        </div>
         <div className="grid justify-items-end gap-0.5">
           {c.followUp ? (
             <span className={cn(overdue && 'font-medium text-destructive')} suppressHydrationWarning>

@@ -13,6 +13,7 @@ import { CategoryBadge, PriorityBadge, TagList } from '@/components/badges';
 import { AddFollowUpButton, RemoveFollowUpButton } from '@/components/followups/add-followup-dialog';
 import { AddBookingButton } from '@/components/contacts/add-booking-button';
 import { StageSelect } from '@/components/contacts/stage-controls';
+import { LogCallButton } from '@/components/contacts/log-call-dialog';
 import { LeadQualitySelect } from '@/components/contacts/lead-quality-select';
 import { useUpdateContact } from '@/hooks/use-contact-mutations';
 import { ContactActionsMenu } from '@/components/contacts/contact-actions-menu';
@@ -147,8 +148,12 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange, stagePendin
         )}
       </TableCell>
       <TableCell>
-        {/* The trigger shows the stage label itself, so no tooltip here. */}
-        <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} disabled={stagePending} className="w-36" />
+        {/* Log call sits beside the stage: it is the action the team reaches for most. */}
+        <div className="flex items-center gap-1.5">
+          {/* The trigger shows the stage label itself, so no tooltip here. */}
+          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} disabled={stagePending} className="w-36" />
+          <LogCallButton contact={c} compact />
+        </div>
       </TableCell>
       <TableCell>
         <LeadQualityCell contact={c} />
