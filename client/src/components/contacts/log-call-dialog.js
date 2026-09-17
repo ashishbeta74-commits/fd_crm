@@ -37,7 +37,7 @@ export function LogCallDialog({ contact, open, onOpenChange, onSaved }) {
   const [bookingNote, setBookingNote] = useState(contact?.booking?.note || '');
   const toBooking = stage === 'future_booking';
 
-  const submit = async (e) => {
+  const submit = (e) => {
     e.preventDefault();
     const data = { type: 'call' };
     if (message.trim()) data.message = message.trim();
@@ -45,10 +45,17 @@ export function LogCallDialog({ contact, open, onOpenChange, onSaved }) {
     if (followUp) data.followUp = followUp;
     if (followUpNote.trim()) data.followUpNote = followUpNote.trim();
     if (toBooking) data.booking = { date: bookingDate || null, time: bookingTime, note: bookingNote };
-    const doc = await log.mutateAsync({ id: contact._id, data });
-    toast.success('Call logged');
+    // Close straight away and save behind it: the contact already shows the result (the edit is applied
+    // to the cache first), so waiting here was seconds of "Saving…" between calls. Failures roll the
+    // row back and toast, from the mutation hook.
+    const saving = log.mutateAsync({ id: contact._id, data });
     onOpenChange(false);
-    onSaved?.(doc);
+    saving
+      .then((doc) => {
+        toast.success('Call logged');
+        onSaved?.(doc);
+      })
+      .catch(() => {});
   };
 
   if (!contact) return null;
@@ -199,14 +206,18 @@ export function NoteDialog({ contact, open, onOpenChange, onSaved }) {
   const log = useLogActivity();
   const [message, setMessage] = useState('');
   if (!contact) return null;
-  const submit = async (e) => {
+  const submit = (e) => {
     e.preventDefault();
     if (!message.trim()) return;
-    const doc = await log.mutateAsync({ id: contact._id, data: { type: 'note', message: message.trim() } });
-    toast.success('Note added');
+    const saving = log.mutateAsync({ id: contact._id, data: { type: 'note', message: message.trim() } });
     setMessage('');
-    onOpenChange(false);
-    onSaved?.(doc);
+    onOpenChange(false); // saved in the background; the hook toasts a failure
+    saving
+      .then((doc) => {
+        toast.success('Note added');
+        onSaved?.(doc);
+      })
+      .catch(() => {});
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

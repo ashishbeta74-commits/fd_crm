@@ -32,7 +32,7 @@ export function AddFollowUpDialog({ contact, open, onOpenChange, onSaved }) {
 
   if (!contact) return null;
 
-  const submit = async (e) => {
+  const submit = (e) => {
     e.preventDefault();
     const data = { type: 'followup', channel };
     if (message.trim()) data.message = message.trim();
@@ -40,11 +40,16 @@ export function AddFollowUpDialog({ contact, open, onOpenChange, onSaved }) {
       data.followUp = next;
       if (nextNote.trim()) data.followUpNote = nextNote.trim();
     }
-    const doc = await log.mutateAsync({ id: contact._id, data });
-    const by = FOLLOW_UP_CHANNELS.find((c) => c.key === channel)?.label.toLowerCase();
-    toast.success(next ? `Follow-up #${round} by ${by} added - next on ${next}` : `Follow-up #${round} by ${by} added`);
+    // Closed at once and saved behind it, like logging a call: the row already shows the result.
+    const saving = log.mutateAsync({ id: contact._id, data });
     onOpenChange(false);
-    onSaved?.(doc);
+    const by = FOLLOW_UP_CHANNELS.find((c) => c.key === channel)?.label.toLowerCase();
+    saving
+      .then((doc) => {
+        toast.success(next ? `Follow-up #${round} by ${by} added - next on ${next}` : `Follow-up #${round} by ${by} added`);
+        onSaved?.(doc);
+      })
+      .catch(() => {});
   };
 
   return (

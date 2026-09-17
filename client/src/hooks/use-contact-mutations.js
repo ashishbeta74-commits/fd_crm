@@ -84,13 +84,40 @@ export function useUpdateContact() {
 }
 
 /** POST /contacts/:id/activities - log a call or add a note (optionally moving stage / setting dates). */
+/** What a logged call / follow-up changes on the contact itself, for the optimistic preview. */
+function activityPreview(data) {
+  const patch = {};
+  if (data.stage) patch.stage = data.stage;
+  if (data.booking) patch.booking = { date: data.booking.date || null, time: data.booking.time || '', note: data.booking.note || '' };
+  if (data.type === 'call' || data.type === 'followup') patch.lastContactedAt = new Date().toISOString();
+  if (data.type === 'followup') {
+    // a follow-up round sets the next date, or clears it when nothing further is planned
+    patch.followUp = data.followUp || null;
+    patch.followUpNote = data.followUp ? data.followUpNote || '' : '';
+  } else {
+    if (data.followUp !== undefined) patch.followUp = data.followUp || null;
+    if (data.followUpNote !== undefined) patch.followUpNote = data.followUpNote || '';
+  }
+  return patch;
+}
+
 export function useLogActivity() {
   const invalidate = useInvalidateContacts();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }) => api.contacts.addActivity(id, data),
+    // Same as an edit: the row shows the result at once, the server confirms behind it.
+    onMutate: async ({ id, data }) => {
+      const ctx = await snapshot(qc, id);
+      patchCached(qc, id, activityPreview(data));
+      return ctx;
+    },
+    onError: (err, vars, ctx) => {
+      rollback(qc, ctx);
+      showError(err);
+    },
     // a call / note never moves the filter lists or the duplicate scan
     onSuccess: (doc, { data }) => invalidate(doc._id, data),
-    onError: showError,
   });
 }
 
