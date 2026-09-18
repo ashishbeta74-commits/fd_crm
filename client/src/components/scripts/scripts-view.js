@@ -187,7 +187,7 @@ function ScriptsSkeleton() {
 }
 
 export function ScriptsView() {
-  const { data, isPending, isError, error, refetch } = useQuery({ queryKey: qk.scripts, queryFn: api.scripts.list });
+  const { data, isPending, isError, error, refetch } = useQuery({ queryKey: qk.scripts, queryFn: api.scripts.list, staleTime: 5 * 60_000 });
   const { remove, restore } = useScriptMutations();
   const [kind, setKind] = useState('script');
   const [q, setQ] = useState('');

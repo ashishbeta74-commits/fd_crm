@@ -252,7 +252,7 @@ function TemplateRow({ t, sender, onEdit, onDuplicate, onDelete, canEdit }) {
 export function TemplatesView() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data, isPending, isError, error, refetch } = useQuery({ queryKey: qk.templates, queryFn: api.templates.list });
+  const { data, isPending, isError, error, refetch } = useQuery({ queryKey: qk.templates, queryFn: api.templates.list, staleTime: 5 * 60_000 });
   const { remove, restore, create } = useTemplateMutations();
   const { isAdmin } = useAuth();
   const [tab, setTab] = useState('all');
