@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { HttpError } from '../lib/errors.js';
 import { isCrmColumn } from '../fields.js';
-import { parseWorkbook } from './excel.js';
+import { parseWorkbook, valueToText } from './excel.js';
 import { googleFetch, isGoogleConfigured } from './googleAuth.js';
 
 /**
@@ -111,6 +111,11 @@ async function fetchExport(spreadsheetId, format, gid) {
   return { buffer, fileName };
 }
 
+/** Column names of a parsed tab without the "(2)" de-duplication suffix and without unnamed columns. */
+const tabHeaders = (s) => (s?.headers || []).filter((h) => !/^Column [A-Z]+$/.test(h)).map((h) => h.replace(/ \(\d+\)$/, ''));
+/** The first data row of a parsed tab as text, for telling apart tabs that share the same columns. */
+const rowText = (s) => JSON.stringify((s.headers || []).map((h) => valueToText(s.rows[0]?.values[h])));
+
 /**
  * Download the whole workbook as .xlsx and parse it. Also works out which tab the link's gid
  * points to by matching that tab's header row (from a small CSV export).
@@ -135,10 +140,15 @@ export async function loadSheetByLink(spreadsheetId, gid = '') {
   if (gid && !linkedSheet) {
     try {
       const { buffer: csv } = await fetchExport(spreadsheetId, 'csv', gid);
-      const firstLine = csv.toString('utf8').split(/\r?\n/).find((l) => l.trim()) || '';
-      const cells = firstLine.split(',').map((c) => c.replace(/^"|"$/g, '').trim()).filter(Boolean);
+      // Parsed like the workbook so the same header row is found (title / group bands are skipped).
+      const [tab] = await parseWorkbook(csv, `${gid}.csv`);
+      const cells = tabHeaders(tab);
       if (cells.length >= 2) {
-        const match = sheets.find((s) => cells.every((c) => s.headers.some((h) => h.replace(/ \(\d+\)$/, '') === c)));
+        const matches = sheets.filter((s) => cells.every((c) => tabHeaders(s).includes(c)));
+        // Tabs with identical columns (e.g. one per region): the one with the same rows is the linked tab.
+        const sameRows = (s) => s.rowCount === tab.rowCount;
+        const firstRow = rowText(tab);
+        const match = matches.find((s) => sameRows(s) && rowText(s) === firstRow) || matches.find(sameRows) || matches[0];
         if (match) linkedSheet = match.name;
       }
     } catch {

@@ -44,18 +44,29 @@ function columnLetter(n) {
   return s;
 }
 
+/** Number of cells in a row that hold a non-empty value (a merged range counts once, for its first cell). */
+function filledCells(row) {
+  let count = 0;
+  row.eachCell({ includeEmpty: false }, (cell) => {
+    if (cell.isMerged && cell.master !== cell) return;
+    if (valueToText(cellToValue(cell.value))) count += 1;
+  });
+  return count;
+}
+
 function parseSheet(ws) {
   const maxScan = Math.min(ws.rowCount || 0, 30);
+  // The header row is the first row with at least two filled cells - unless the row right after it has at
+  // least twice as many. Then this row is a title / group band (e.g. "Contact | Company | Outreach" in merged
+  // cells above the real column names, as in the Virtuoso sheets) and the next row is the header.
   let headerRowNum = 0;
   for (let r = 1; r <= maxScan; r += 1) {
-    let count = 0;
-    ws.getRow(r).eachCell({ includeEmpty: false }, (cell) => {
-      if (valueToText(cellToValue(cell.value))) count += 1;
-    });
-    if (count >= 2) {
-      headerRowNum = r;
-      break;
-    }
+    const count = filledCells(ws.getRow(r));
+    if (count < 2) continue;
+    const next = r < maxScan ? filledCells(ws.getRow(r + 1)) : 0;
+    if (next >= count * 2) continue;
+    headerRowNum = r;
+    break;
   }
   if (!headerRowNum) return null;
 
@@ -95,7 +106,7 @@ function parseSheet(ws) {
 
 /**
  * Parse an .xlsx/.xlsm/.csv buffer into sheets: { name, headers, rows: [{ rowNumber, values }], rowCount }.
- * The header row is the first row with at least two non-empty cells.
+ * The header row is the first row with at least two non-empty cells (a title / group band above it is skipped).
  */
 export async function parseWorkbook(buffer, fileName = '') {
   const wb = new ExcelJS.Workbook();
