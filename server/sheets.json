@@ -10,5 +10,6 @@
   {"name":"Travel advisors/manager","date":"01/09/2026","url":"https://docs.google.com/spreadsheets/d/1kuiWY1KLCiXpvhrnPEAReM_Vlyf6ecO7Ukc3Sl7d45Y/edit?gid=0#gid=0","tab":"Cleaned"},
   {"name":"Travel Advisors","date":"02/09/2026","url":"https://docs.google.com/spreadsheets/d/1Q76AcECBy5yOCIvqkchBDyGayLN_iqjYv2-69xWZGkg/edit?gid=304728565#gid=304728565","note":"the spreadsheet is empty in Google Drive (1 KB, 'Untitled spreadsheet') - nothing to import"},
   {"name":"Travel Advisors","date":"27/08/2026","url":"https://docs.google.com/spreadsheets/d/1N3zzCLnMh4LTiXWVpR0W3YTAdtm39z3n59aNjE4YFeo/edit?gid=1570936358#gid=1570936358","tab":"CLEANED","note":"private sheet - share as Anyone with the link for sync"},
-  {"name":"Virtuoso@UK","date":"","url":"https://docs.google.com/spreadsheets/d/1tookR9acrBYj1wnJQ8qxCIXssKwbFdXw-95bkA7agYU/edit?gid=168440823#gid=168440823","tab":"UK @Virtuoso"}
+  {"name":"Virtuoso@UK","date":"","url":"https://docs.google.com/spreadsheets/d/1tookR9acrBYj1wnJQ8qxCIXssKwbFdXw-95bkA7agYU/edit?gid=168440823#gid=168440823","tab":"UK @Virtuoso"},
+  {"name":"Outreach list","date":"","url":"https://docs.google.com/spreadsheets/d/1rCZ46JZbPfbEWcNw69_PJM3t03ibFSkLG56lg8RVwwU/edit?usp=sharing","tab":"Client Outreach","note":"email outreach sheet, no phone column - imported with requirePhone off"}
 ]
