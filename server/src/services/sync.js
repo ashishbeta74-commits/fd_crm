@@ -129,10 +129,16 @@ export async function resyncBatch(batchOrId, { strategy, updateStage, requirePho
   const plans = extendPlans(batch.plans, loaded.sheets);
   const includedTabs = plans.filter((p) => p.include).map((p) => p.name);
   const hash = contentHash(loaded.sheets, includedTabs);
-  if (!force && batch.source.contentHash && hash === batch.source.contentHash) {
+  // Unchanged when the content matches the batch's hash, or the hash this process computed last time.
+  // The second check matters when another API instance (a deploy, a teammate's machine) syncs the same
+  // database with a different parser version: its batches carry a different hash for the same sheet, and
+  // without it the two instances would re-import each other's batches forever.
+  if (!force && hash && ((batch.source.contentHash && hash === batch.source.contentHash) || getStatus(spreadsheetId).lastHash === hash)) {
+    setStatus(spreadsheetId, { lastHash: hash });
     await recordCheck(spreadsheetId, 'unchanged');
     return { unchanged: true, batch };
   }
+  setStatus(spreadsheetId, { lastHash: hash });
   const upload = {
     fileName: loaded.fileName,
     sheets: loaded.sheets,
