@@ -180,6 +180,23 @@ async function hungUpAndNotInterested() {
   if (moved.hung_up || moved.not_interested) console.log(`[migrate] Started -> Hung Up: ${moved.hung_up}, Started -> Not Interested: ${moved.not_interested}`);
 }
 
+// The newest "moved to <current stage>" history entry of a contact (null when there is none).
+const NEWEST_STAGE_ENTRY = {
+  $max: {
+    $map: {
+      input: {
+        $filter: {
+          input: { $ifNull: ['$activities', []] },
+          as: 'a',
+          cond: { $and: [{ $eq: ['$$a.type', 'stage'] }, { $eq: ['$$a.toStage', '$stage'] }] },
+        },
+      },
+      as: 'a',
+      in: '$$a.at',
+    },
+  },
+};
+
 /**
  * stageChangedAt (when a contact entered its current stage) for contacts created before the field existed:
  * the newest "moved to <current stage>" history entry, else the contact's creation date.
@@ -187,18 +204,24 @@ async function hungUpAndNotInterested() {
 async function stageChangedAt() {
   const col = mongoose.connection.collection('contacts');
   const pending = await col.countDocuments({ stageChangedAt: { $exists: false } });
-  if (!pending) return;
-  const enteredCurrent = {
-    $filter: {
-      input: { $ifNull: ['$activities', []] },
-      as: 'a',
-      cond: { $and: [{ $eq: ['$a.type', 'stage'] }, { $eq: ['$a.toStage', '$stage'] }] },
-    },
-  };
-  await col.updateMany({ stageChangedAt: { $exists: false } }, [
-    { $set: { stageChangedAt: { $ifNull: [{ $max: { $map: { input: enteredCurrent, as: 'a', in: '$a.at' } } }, '$createdAt'] } } },
-  ]);
-  console.log(`[migrate] stageChangedAt: backfilled ${pending} contact(s)`);
+  if (pending) {
+    await col.updateMany({ stageChangedAt: { $exists: false } }, [{ $set: { stageChangedAt: { $ifNull: [NEWEST_STAGE_ENTRY, '$createdAt'] } } }]);
+    console.log(`[migrate] stageChangedAt: backfilled ${pending} contact(s)`);
+  }
+  await repairStageChangedAt();
+}
+
+/**
+ * A stage change saved by a process without this field's save hook (an API still on older code, a bulk
+ * update) leaves stageChangedAt behind its own history. Bring it up to the newest matching history entry.
+ * Idempotent and cheap; runs at start-up and after every sheet sync cycle.
+ */
+export async function repairStageChangedAt() {
+  if (mongoose.connection.readyState !== 1) return 0;
+  const col = mongoose.connection.collection('contacts');
+  const r = await col.updateMany({ $expr: { $lt: ['$stageChangedAt', NEWEST_STAGE_ENTRY] } }, [{ $set: { stageChangedAt: NEWEST_STAGE_ENTRY } }]);
+  if (r.modifiedCount) console.log(`[migrate] stageChangedAt: repaired ${r.modifiedCount} contact(s) whose stage was changed without the date`);
+  return r.modifiedCount;
 }
 
 export async function runMigrations() {

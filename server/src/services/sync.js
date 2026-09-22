@@ -4,6 +4,7 @@
 //               linked tabs and imports only when the content changed ("sync on change").
 import { ImportBatch } from '../models/ImportBatch.js';
 import { LinkedSheet } from '../models/LinkedSheet.js';
+import { repairStageChangedAt } from '../lib/migrations.js';
 import { HttpError } from '../lib/errors.js';
 import { contentHash, loadSheetByLink, sheetUrl } from './sheetLink.js';
 import { runImport } from './importer.js';
@@ -206,6 +207,8 @@ export async function syncChangedSheets({ log = console.log } = {}) {
     }
     await sleep(STAGGER_MS);
   }
+  // Another API instance may sync the same database without the stage-date save hook; keep the dates honest.
+  if (summary.synced) await repairStageChangedAt().catch((err) => log(`[sync] stage-date repair failed: ${err.message}`));
   return summary;
 }
 
