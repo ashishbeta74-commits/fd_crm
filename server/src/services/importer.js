@@ -177,6 +177,10 @@ const hasPhone = (c) => String(c.contactMain || '').replace(/\D/g, '').length >=
 
 const activityKey = (a) => `${a.type}|${a.message}|${a.at ? new Date(a.at).toISOString().slice(0, 10) : ''}`;
 
+/** The "Updated from …" line a sheet sync leaves behind - one per contact, rewritten on each sync (see writeContact). */
+export const SYNC_UPDATE_PREFIX = 'Updated from "';
+const isSyncUpdate = (a) => a.type === 'import' && String(a.message || '').startsWith(SYNC_UPDATE_PREFIX);
+
 /** Merge a duplicate row (same dedupe key, same sheet) into the first occurrence. */
 function mergeContact(target, dup) {
   for (const k of TEXT_FIELDS) {
@@ -253,7 +257,19 @@ async function writeContact(c, { strategy, updateStage, batchId, sheetName, list
   } else if (doc.status && !existing.status) {
     existing.status = doc.status;
   }
-  existing.activities.push({ type: 'import', source: 'import', message: `Updated from "${listName}" (${sheetName}, row ${doc.source.row})` });
+  // One "Updated from …" line per contact, not one per sync: the newest replaces the previous one. A
+  // contact's history then shows where it came from and when it was last synced, instead of dozens of
+  // identical lines (they were 97% of every history entry in the database). The "Imported from …" origin
+  // line and the "filled in from tab …" enrichment lines are left alone, and nothing counts these entries
+  // (the dashboard, the daily report and the activity feed all skip type 'import').
+  const syncedLine = `Updated from "${listName}" (${sheetName}, row ${doc.source.row})`;
+  const previousLine = existing.activities.filter(isSyncUpdate).pop();
+  if (previousLine) {
+    previousLine.message = syncedLine;
+    previousLine.at = new Date();
+  } else {
+    existing.activities.push({ type: 'import', source: 'import', message: syncedLine });
+  }
   // A type is only ever filled in by a sync, never changed: what the team set by hand stays. Same for the place.
   if (!existing.category && doc.category) existing.category = doc.category;
   for (const k of ['city', 'state', 'country']) if (!existing[k] && doc[k]) existing[k] = doc[k];

@@ -238,6 +238,45 @@ export function startStageDateRepair(everyMs = 60_000) {
   return timer;
 }
 
+// A "Updated from …" history line, as a sheet sync writes it (see services/importer.js).
+const IS_SYNC_UPDATE = {
+  $and: [{ $eq: ['$$a.type', 'import'] }, { $eq: [{ $substrCP: [{ $ifNull: ['$$a.message', ''] }, 0, 14] }, 'Updated from "'] }],
+};
+
+/**
+ * Keep one "Updated from …" line per contact instead of one per sheet sync. They had grown to 97% of every
+ * history entry in the database (142,868 of 153,426), which made each contact document ~6 KB and slowed
+ * every query that reads whole documents. The newest line is kept, so the timeline still says when the
+ * contact was last synced; the "Imported from …" origin line and the "filled in from tab …" enrichment
+ * lines are untouched, and nothing in the app counts these entries. The importer no longer appends them,
+ * so this only has work to do for contacts an older API instance has synced. Idempotent.
+ */
+export async function collapseImportHistory() {
+  if (mongoose.connection.readyState !== 1) return 0;
+  const col = mongoose.connection.collection('contacts');
+  const syncLines = { $filter: { input: { $ifNull: ['$activities', []] }, as: 'a', cond: IS_SYNC_UPDATE } };
+  const r = await col.updateMany({ $expr: { $gte: [{ $size: syncLines }, 2] } }, [
+    {
+      $set: {
+        activities: {
+          $let: {
+            vars: { newest: { $max: { $map: { input: syncLines, as: 'a', in: '$$a.at' } } } },
+            in: {
+              $filter: {
+                input: { $ifNull: ['$activities', []] },
+                as: 'a',
+                cond: { $or: [{ $not: [IS_SYNC_UPDATE] }, { $eq: ['$$a.at', '$$newest'] }] },
+              },
+            },
+          },
+        },
+      },
+    },
+  ]);
+  if (r.modifiedCount) console.log(`[migrate] import history: kept one "Updated from …" line on ${r.modifiedCount} contact(s)`);
+  return r.modifiedCount;
+}
+
 export async function runMigrations() {
   if (mongoose.connection.readyState !== 1) return;
   await callOutcomesToStages();
@@ -247,6 +286,7 @@ export async function runMigrations() {
   await inferPlaces();
   await hungUpAndNotInterested();
   await stageChangedAt();
+  await collapseImportHistory();
 }
 
 // Keep the model import so the collection exists / indexes are registered before the first query.
