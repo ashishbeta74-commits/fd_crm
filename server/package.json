@@ -6,6 +6,7 @@
   "description": "CRM API - Node.js + Express + MongoDB",
   "main": "src/index.js",
   "scripts": {
+    "build": "echo \"nothing to build: plain Node API, run npm start\"",
     "dev": "node --watch-path=src --env-file-if-exists=.env src/index.js",
     "start": "node --env-file-if-exists=.env src/index.js",
     "db": "node --env-file-if-exists=.env scripts/embedded-mongo.js",
