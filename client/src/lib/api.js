@@ -1,7 +1,14 @@
 // Thin fetch wrapper for the CRM API. The Next.js server proxies /api/* to the Express API
 // (see next.config.mjs), so everything here uses relative URLs.
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE || '/api';
+// NEXT_PUBLIC_API_BASE is the API's origin with or without the '/api' suffix: 'https://host' and
+// 'https://host/api/' both become 'https://host/api', so a deploy cannot break on a missing suffix.
+const normalizeBase = (raw) => {
+  const trimmed = String(raw || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '/api';
+  return /\/api$/.test(trimmed) ? trimmed : `${trimmed}/api`;
+};
+const BASE = normalizeBase(process.env.NEXT_PUBLIC_API_BASE);
 
 export class ApiError extends Error {
   constructor(status, message, details) {
