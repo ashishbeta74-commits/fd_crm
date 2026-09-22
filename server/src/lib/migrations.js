@@ -224,6 +224,16 @@ export async function repairStageChangedAt() {
   return r.modifiedCount;
 }
 
+/**
+ * While another API instance without the save hook writes stage changes, re-stamp drifted dates every
+ * minute (an indexed-scan update over a few thousand contacts: tens of milliseconds).
+ */
+export function startStageDateRepair(everyMs = 60_000) {
+  const timer = setInterval(() => repairStageChangedAt().catch((err) => console.warn(`[migrate] stage-date repair failed: ${err.message}`)), everyMs);
+  timer.unref?.();
+  return timer;
+}
+
 export async function runMigrations() {
   if (mongoose.connection.readyState !== 1) return;
   await callOutcomesToStages();

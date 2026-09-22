@@ -22,6 +22,7 @@ import { getDbUri } from './config/db.js';
 import { startAutoSync } from './services/sync.js';
 import { startWriteback } from './services/writeback.js';
 import { startPush } from './services/push.js';
+import { startStageDateRepair } from './lib/migrations.js';
 import { dayKey, getReport, history, startDailyReports } from './services/dailyReport.js';
 import { pushRouter } from './routes/push.js';
 import { seedTemplates } from './services/emailTemplates.js';
@@ -37,6 +38,7 @@ export function createApp() {
   startWriteback();
   startPush();
   startDailyReports();
+  startStageDateRepair();
   // The dashboard's counts and the filter lists are recomputed in the background, so a page load
   // reads them from memory instead of waiting on the database (which may be a continent away).
   warm('stats', STATS_TTL, computeStats);
