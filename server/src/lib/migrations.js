@@ -219,9 +219,13 @@ async function stageChangedAt() {
 export async function repairStageChangedAt() {
   if (mongoose.connection.readyState !== 1) return 0;
   const col = mongoose.connection.collection('contacts');
-  const r = await col.updateMany({ $expr: { $lt: ['$stageChangedAt', NEWEST_STAGE_ENTRY] } }, [{ $set: { stageChangedAt: NEWEST_STAGE_ENTRY } }]);
-  if (r.modifiedCount) console.log(`[migrate] stageChangedAt: repaired ${r.modifiedCount} contact(s) whose stage was changed without the date`);
-  return r.modifiedCount;
+  // Contacts created by a process without the field get it from their history (else their creation date) ...
+  const added = await col.updateMany({ stageChangedAt: { $exists: false } }, [{ $set: { stageChangedAt: { $ifNull: [NEWEST_STAGE_ENTRY, '$createdAt'] } } }]);
+  // ... and a stage change saved without the hook is stamped from its history entry.
+  const fixed = await col.updateMany({ $expr: { $lt: ['$stageChangedAt', NEWEST_STAGE_ENTRY] } }, [{ $set: { stageChangedAt: NEWEST_STAGE_ENTRY } }]);
+  const n = added.modifiedCount + fixed.modifiedCount;
+  if (n) console.log(`[migrate] stageChangedAt: stamped ${n} contact(s) saved by a process without the save hook`);
+  return n;
 }
 
 /**

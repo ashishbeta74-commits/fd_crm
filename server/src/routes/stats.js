@@ -102,28 +102,10 @@ function contactRollup({ today, tomorrow, week, localMidnight }) {
         sheet: '$source.sheetName',
         followUp: 1,
         contactedToday: { $cond: [{ $gte: [{ $ifNull: ['$lastContactedAt', new Date(0)] }, localMidnight] }, 1, 0] },
-        // The stage this contact entered today and is still in ('' when it did not move today):
-        // moving one back out takes it off the count again, as before.
-        enteredToday: {
-          $cond: [
-            {
-              $gt: [
-                {
-                  $size: {
-                    $filter: {
-                      input: { $ifNull: ['$activities', []] },
-                      as: 'a',
-                      cond: { $and: [{ $eq: ['$$a.type', 'stage'] }, { $eq: ['$$a.toStage', '$stage'] }, { $gte: [{ $ifNull: ['$$a.at', new Date(0)] }, localMidnight] }] },
-                    },
-                  },
-                },
-                0,
-              ],
-            },
-            '$stage',
-            '',
-          ],
-        },
+        // The stage this contact entered today and is still in ('' when it did not move today). Read from the
+        // same stamped date as the Contacts "Stage date" filter and the "by day" card, so the tiles, the card
+        // and the filtered list can never disagree (moving a contact on again takes it off the count, as before).
+        enteredToday: { $cond: [{ $gte: [{ $ifNull: ['$stageChangedAt', new Date(0)] }, localMidnight] }, '$stage', ''] },
       },
     },
     {
