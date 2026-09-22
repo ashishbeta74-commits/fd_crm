@@ -59,6 +59,9 @@ const ContactSchema = new Schema(
     // Follow-up rounds done so far ("Follow Up 1", "Follow Up 2" in the calling sheets); the next one is #count+1.
     followUpCount: { type: Number, default: 0 },
     stage: { type: String, enum: STAGE_KEYS, default: 'new', index: true },
+    // When the contact entered its current stage (set on every stage change). Drives the "In stage since"
+    // filter / column and the dashboard's "Prospects by day".
+    stageChangedAt: { type: Date, default: null, index: true },
     booking: {
       date: { type: Date, default: null },
       time: { type: String, default: '' },
@@ -158,6 +161,7 @@ ContactSchema.pre('save', function preSave(next) {
   this.dedupeKey = computeDedupeKey(this);
   this.tags = normalizeTags(this.tags);
   this.priorityRank = priorityRank(this.priority);
+  if (this.isModified('stage') || (this.isNew && !this.stageChangedAt)) this.stageChangedAt = new Date();
   // LinkedIn pipeline: derive the stage and the dashboard helpers from what was logged.
   const li = this.linkedin || {};
   const stage = computeLinkedinStage(li);

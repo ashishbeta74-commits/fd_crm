@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { daysFromToday, formatDate, formatDateWithDay, formatTime, relativeDay, timeAgo } from '@/lib/format';
+import { daysFromToday, formatDate, formatDateTime, formatDateWithDay, formatTime, relativeDay, timeAgo } from '@/lib/format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,6 +29,7 @@ const COLUMNS = [
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },
   { key: 'stage', label: 'Stage', sort: 'stage' },
+  { key: 'stageSince', label: 'In stage since', sort: 'stageChangedAt' },
   { key: 'leadQuality', label: 'Lead quality', sort: 'leadQuality' },
   { key: 'category', label: 'Type', sort: 'category' },
   { key: 'priority', label: 'Priority', sort: 'priorityRank' },
@@ -156,6 +157,16 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange }) {
           <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} className="w-36" />
           <LogCallButton contact={c} compact />
         </div>
+      </TableCell>
+      <TableCell className="text-muted-foreground" suppressHydrationWarning>
+        {c.stageChangedAt ? (
+          <div>
+            <div>{formatDateTime(c.stageChangedAt)}</div>
+            <div className="text-xs">{timeAgo(c.stageChangedAt)}</div>
+          </div>
+        ) : (
+          <Dash />
+        )}
       </TableCell>
       <TableCell>
         <LeadQualityCell contact={c} />

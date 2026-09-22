@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Download, MapPin, Plus, Search, Upload, X } from 'lucide-react';
+import { CalendarRange, ChevronDown, Download, MapPin, Plus, Search, Upload, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { CATEGORIES, CATEGORY_STYLES, LEAD_QUALITIES, PRIORITIES, PRIORITY_STYLES, STAGES, STAGE_STYLES, leadQualityStyle } from '@/lib/constants';
 import { SavedViewsMenu } from '@/components/views/saved-views-menu';
@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { formatDate } from '@/lib/format';
+import { zonedDayAt } from '@/lib/tz';
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -252,6 +255,68 @@ function SingleFilter({ label, options, value, onChange }) {
   );
 }
 
+// Quick ranges for the stage-date filter, as day offsets from today (New York calendar).
+const STAGE_DATE_PRESETS = [
+  { label: 'Today', from: 0, to: 0 },
+  { label: 'Yesterday', from: -1, to: -1 },
+  { label: 'Last 7 days', from: -6, to: 0 },
+  { label: 'Last 30 days', from: -29, to: 0 },
+];
+
+/**
+ * "Stage date": contacts that entered their current stage between two calendar days. With Stage = Prospect
+ * it answers "which prospects were added on which day"; the dashboard's "Prospects by day" links here.
+ */
+function StageDateFilter({ from, to, onChange }) {
+  const active = Boolean(from || to);
+  const summary = !active ? 'Stage date' : from && from === to ? `Stage date: ${formatDate(from)}` : `Stage date: ${from ? formatDate(from) : '…'} – ${to ? formatDate(to) : '…'}`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className={cn('font-normal transition-colors duration-200', active && ACTIVE)} aria-label="Stage date filter">
+          <CalendarRange />
+          {summary}
+          <ChevronDown />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 space-y-3">
+        <div>
+          <p className="text-sm font-medium">Entered current stage between</p>
+          <p className="text-xs text-muted-foreground">Combine with Stage = Prospect to see which prospects were added on which day.</p>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {STAGE_DATE_PRESETS.map((p) => {
+            const f = zonedDayAt(p.from);
+            const t = zonedDayAt(p.to);
+            const on = from === f && to === t;
+            return (
+              <Button key={p.label} size="sm" variant={on ? 'default' : 'outline'} onClick={() => onChange({ stageFrom: f, stageTo: t })}>
+                {p.label}
+              </Button>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            From
+            <Input type="date" value={from} max={to || undefined} onChange={(e) => onChange({ stageFrom: e.target.value })} aria-label="Entered stage from" />
+          </label>
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            To
+            <Input type="date" value={to} min={from || undefined} onChange={(e) => onChange({ stageTo: e.target.value })} aria-label="Entered stage to" />
+          </label>
+        </div>
+        {active ? (
+          <Button variant="ghost" size="sm" onClick={() => onChange({ stageFrom: '', stageTo: '' })}>
+            <X />
+            Clear dates
+          </Button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 /** Tags known across the CRM (from meta) as a multi-select; a tag in the URL stays selectable even if it vanished. */
 function TagFilter({ value, onChange }) {
   const { data } = useMeta();
@@ -296,6 +361,7 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
       <SearchInput value={params.q} onCommit={commitSearch} />
       <TypeToggles value={params.category} onChange={(category) => setParams({ category })} />
       <MultiFilter label="Stage" options={STAGE_OPTIONS} value={params.stage} onChange={(stage) => setParams({ stage })} />
+      <StageDateFilter from={params.stageFrom} to={params.stageTo} onChange={setParams} />
       <LeadQualityFilter value={params.leadQuality} onChange={(leadQuality) => setParams({ leadQuality })} />
 
       <SheetFilter value={params.sheet} onChange={(sheet) => setParams({ sheet })} />

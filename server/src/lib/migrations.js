@@ -180,6 +180,27 @@ async function hungUpAndNotInterested() {
   if (moved.hung_up || moved.not_interested) console.log(`[migrate] Started -> Hung Up: ${moved.hung_up}, Started -> Not Interested: ${moved.not_interested}`);
 }
 
+/**
+ * stageChangedAt (when a contact entered its current stage) for contacts created before the field existed:
+ * the newest "moved to <current stage>" history entry, else the contact's creation date.
+ */
+async function stageChangedAt() {
+  const col = mongoose.connection.collection('contacts');
+  const pending = await col.countDocuments({ stageChangedAt: { $exists: false } });
+  if (!pending) return;
+  const enteredCurrent = {
+    $filter: {
+      input: { $ifNull: ['$activities', []] },
+      as: 'a',
+      cond: { $and: [{ $eq: ['$a.type', 'stage'] }, { $eq: ['$a.toStage', '$stage'] }] },
+    },
+  };
+  await col.updateMany({ stageChangedAt: { $exists: false } }, [
+    { $set: { stageChangedAt: { $ifNull: [{ $max: { $map: { input: enteredCurrent, as: 'a', in: '$a.at' } } }, '$createdAt'] } } },
+  ]);
+  console.log(`[migrate] stageChangedAt: backfilled ${pending} contact(s)`);
+}
+
 export async function runMigrations() {
   if (mongoose.connection.readyState !== 1) return;
   await callOutcomesToStages();
@@ -188,6 +209,7 @@ export async function runMigrations() {
   await contactGeo();
   await inferPlaces();
   await hungUpAndNotInterested();
+  await stageChangedAt();
 }
 
 // Keep the model import so the collection exists / indexes are registered before the first query.

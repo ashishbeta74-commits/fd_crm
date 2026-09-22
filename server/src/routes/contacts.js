@@ -16,7 +16,7 @@ import { formatZoned } from '../config/timezone.js';
 export const contactsRouter = Router();
 
 const SEARCH_FIELDS = ['name', 'email', 'primaryEmail', 'secondaryEmail', 'companyName', 'title', 'location', 'city', 'state', 'country', 'contactMain', 'contactL1', 'companyNo', 'website', 'status', 'notes'];
-const SORT_FIELDS = ['updatedAt', 'createdAt', 'name', 'companyName', 'stage', 'category', 'leadQuality', 'followUp', 'booking.date', 'lastContactedAt', 'location', 'title', 'priorityRank'];
+const SORT_FIELDS = ['updatedAt', 'createdAt', 'name', 'companyName', 'stage', 'category', 'leadQuality', 'followUp', 'booking.date', 'lastContactedAt', 'location', 'title', 'priorityRank', 'stageChangedAt'];
 
 export const listQuery = z.object({
   q: z.string().trim().max(200).optional(),
@@ -37,6 +37,9 @@ export const listQuery = z.object({
   city: z.string().optional(),
   followUp: z.enum(['any', 'overdue', 'today', 'week', 'none']).optional(),
   booking: z.enum(['any', 'upcoming', 'none']).optional(),
+  // "In stage since": contacts that entered their current stage between two New York calendar days (YYYY-MM-DD, inclusive)
+  stageFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  stageTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(500).default(25),
   // sheet (insertion) order by default: stable while the team works the list (see client contact-filters.js)
@@ -45,6 +48,11 @@ export const listQuery = z.object({
 });
 
 const csv = (s) => String(s).split(',').map((x) => x.trim()).filter(Boolean);
+// Midnight of a YYYY-MM-DD day in the CRM's time zone (the process is pinned to New York), plus `days`.
+const localDay = (iso, days = 0) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d + days);
+};
 
 export function buildFilter(q) {
   const filter = {};
@@ -53,6 +61,11 @@ export function buildFilter(q) {
     filter.$or = SEARCH_FIELDS.map((f) => ({ [f]: rx }));
   }
   if (q.stage) filter.stage = { $in: csv(q.stage) };
+  if (q.stageFrom || q.stageTo) {
+    filter.stageChangedAt = {};
+    if (q.stageFrom) filter.stageChangedAt.$gte = localDay(q.stageFrom);
+    if (q.stageTo) filter.stageChangedAt.$lt = localDay(q.stageTo, 1);
+  }
   if (q.sheet) filter['source.sheetName'] = q.sheet;
   // Contacts created before tags / priority existed have no such field at all, so "none" must match missing too.
   if (q.tag) {

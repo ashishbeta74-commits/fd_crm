@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Mail, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { daysFromToday, formatDate, formatTime, relativeDay, timeAgo } from '@/lib/format';
+import { daysFromToday, formatDate, formatDateTime, formatTime, relativeDay, timeAgo } from '@/lib/format';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryBadge, LeadQualityBadge, PriorityBadge, TagList } from '@/components/badges';
@@ -80,6 +80,11 @@ function ContactCard({ contact: c, selected, onToggle, onStageChange }) {
           <LogCallButton contact={c} compact />
         </div>
         <div className="grid justify-items-end gap-0.5">
+          {c.stageChangedAt ? (
+            <span className="text-muted-foreground" suppressHydrationWarning>
+              In stage since {formatDateTime(c.stageChangedAt)}
+            </span>
+          ) : null}
           {c.followUp ? (
             <span className={cn(overdue && 'font-medium text-destructive')} suppressHydrationWarning>
               Follow-up {formatDate(c.followUp)} · {relativeDay(c.followUp)}

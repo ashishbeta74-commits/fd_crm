@@ -54,6 +54,34 @@ statsRouter.get('/', async (req, res) => {
   res.json(await memo('stats', STATS_TTL, computeStats));
 });
 
+// GET /api/stats/stage-days?stage=prospect&days=14 - contacts that entered the stage (and are still in it)
+// per New York calendar day, newest day first. Every day of the span is present, with 0 when nothing moved.
+statsRouter.get('/stage-days', async (req, res) => {
+  const stage = String(req.query.stage || 'prospect');
+  if (!STAGE_KEYS.includes(stage)) throw new HttpError(400, 'unknown stage');
+  const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
+  res.json({ stage, days, items: await memo(`stage-days:${stage}:${days}`, STATS_TTL, () => stageDays(stage, days)) });
+});
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const localKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+async function stageDays(stage, days) {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
+  const rows = await Contact.aggregate([
+    { $match: { stage, stageChangedAt: { $gte: from } } },
+    { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$stageChangedAt', timezone: process.env.TZ || 'America/New_York' } }, count: { $sum: 1 } } },
+  ]);
+  const counts = new Map(rows.map((r) => [r._id, r.count]));
+  const items = [];
+  for (let i = 0; i < days; i += 1) {
+    const key = localKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - i));
+    items.push({ day: key, count: counts.get(key) || 0 });
+  }
+  return items;
+}
+
 export { computeStats, DAILY_TTL };
 
 /**

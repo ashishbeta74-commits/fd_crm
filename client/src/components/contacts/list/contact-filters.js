@@ -31,6 +31,7 @@ export const SORT_COLUMNS = {
   title: 'asc',
   companyName: 'asc',
   stage: 'asc',
+  stageChangedAt: 'desc',
   category: 'asc',
   leadQuality: 'asc',
   priorityRank: 'desc',
@@ -41,7 +42,7 @@ export const SORT_COLUMNS = {
 };
 
 /** Params that narrow the result set (page / limit / sort / dir only shape it). */
-export const FILTER_KEYS = ['q', 'stage', 'leadQuality', 'category', 'country', 'state', 'city', 'sheet', 'batch', 'tag', 'priority', 'followUp', 'booking'];
+export const FILTER_KEYS = ['q', 'stage', 'stageFrom', 'stageTo', 'leadQuality', 'category', 'country', 'state', 'city', 'sheet', 'batch', 'tag', 'priority', 'followUp', 'booking'];
 
 /** Keys a saved view stores (filters + sort). */
 export const VIEW_KEYS = [...FILTER_KEYS, 'sort', 'dir'];
@@ -49,6 +50,8 @@ export const VIEW_KEYS = [...FILTER_KEYS, 'sort', 'dir'];
 const DEFAULTS = { page: 1, limit: DEFAULT_LIMIT, sort: DEFAULT_SORT, dir: DEFAULT_DIR };
 
 const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
+// A calendar day as the API and <input type="date"> spell it; anything else is dropped.
+const isoDay = (value) => (/^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '');
 
 /** URLSearchParams -> the params object GET /api/contacts accepts (the API rejects unknown enum values). */
 export function parseListParams(sp) {
@@ -58,6 +61,8 @@ export function parseListParams(sp) {
   return {
     q: get('q'),
     stage: get('stage'),
+    stageFrom: isoDay(get('stageFrom')),
+    stageTo: isoDay(get('stageTo')),
     leadQuality: get('leadQuality'),
     category: get('category'),
     country: get('country'),

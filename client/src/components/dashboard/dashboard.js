@@ -21,7 +21,8 @@ import { ImportsCard, isManualSheet } from '@/components/dashboard/imports-card'
 import { TemplatesCard } from '@/components/dashboard/templates-card';
 import { TodayCard } from '@/components/dashboard/today-card';
 import { DailyReport } from '@/components/dashboard/daily-report';
-import { TIME_ZONE, zonedParts } from '@/lib/tz';
+import { StageDaysCard } from '@/components/dashboard/stage-days-card';
+import { TIME_ZONE, zonedDateIso, zonedParts } from '@/lib/tz';
 
 const REFETCH_MS = 60_000;
 // Champagne buttons on the dark hero, like "Reserve" on the site.
@@ -194,7 +195,7 @@ export function Dashboard() {
         <div className={TILE_GRID}>
           <StatTile label="Total contacts" value={total} href="/contacts" icon={Users} accent="slate" caption={sheetCount ? `from ${pluralize(sheetCount, 'sheet')}` : undefined} hint="Every contact in the CRM, across all stages" />
           <StatTile label="Calls today" value={contactedToday} href="/contacts?sort=lastContactedAt&dir=desc" icon={PhoneCall} accent="blue" caption="worked so far today" hint="Contacts with a call or email logged since midnight, or moved out of New today" />
-          <StatTile label="Prospects today" value={prospectsToday} href="/contacts?stage=prospect&sort=updatedAt&dir=desc" icon={Sparkles} accent="violet" caption="moved to Prospect today" hint="Contacts that entered the Prospect stage since midnight" />
+          <StatTile label="Prospects today" value={prospectsToday} href={`/contacts?stage=prospect&stageFrom=${zonedDateIso()}&stageTo=${zonedDateIso()}&sort=stageChangedAt&dir=desc`} icon={Sparkles} accent="violet" caption="moved to Prospect today" hint="Contacts that entered the Prospect stage since midnight" />
           <StatTile label="Voice mails today" value={todayByStage.voicemail || 0} href="/contacts?stage=voicemail&sort=updatedAt&dir=desc" icon={Voicemail} accent="amber" caption="moved to Voice Mail today" hint="Contacts that entered the Voice Mail stage since midnight and are still there" />
           <StatTile label="Hung up today" value={todayByStage.hung_up || 0} href="/contacts?stage=hung_up&sort=updatedAt&dir=desc" icon={PhoneOff} accent="orange" caption="moved to Hung Up today" hint="Contacts that entered the Hung Up stage since midnight and are still there" />
           <StatTile label="Not interested today" value={todayByStage.not_interested || 0} href="/contacts?stage=not_interested&sort=updatedAt&dir=desc" icon={ThumbsDown} accent="slate" caption="moved to Not Interested today" hint="Contacts that entered the Not Interested stage since midnight and are still there" />
@@ -238,6 +239,7 @@ export function Dashboard() {
 
         <div className={CARD_GRID}>
           <TodayCard followUps={dueFollowUps} />
+          <StageDaysCard />
           <PipelineCard total={total} byStage={byStage} />
           <BookingsCard items={upcomingBookings} />
           <ActivityCard items={recentActivity} />
