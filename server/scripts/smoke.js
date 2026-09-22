@@ -11,6 +11,19 @@ const sample = path.resolve(process.cwd(), '..', 'samples', 'sample-contacts.xls
 let failures = 0;
 
 const dbUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/crm';
+
+// This script DROPS the database below, and `npm run smoke` loads server/.env - which holds the live
+// Atlas address. Refuse anything that is not plainly a local or test database; SMOKE_ALLOW_REMOTE=1
+// is the deliberate override for a throwaway cluster.
+const isLocalHost = /(\/\/|@)(localhost|127\.0\.0\.1)[:/]/.test(dbUri);
+const isTestDbName = /\/[^/?]*test[^/?]*(\?|$)/i.test(dbUri);
+if (!isLocalHost && !isTestDbName && process.env.SMOKE_ALLOW_REMOTE !== '1') {
+  console.error(`Refusing to run: this drops the database, and MONGODB_URI points at ${dbUri.replace(/\/\/([^@/]+)@/, '//***@')}`);
+  console.error('Point it at a local or "…test…" database first, e.g. MONGODB_URI=mongodb://127.0.0.1:27018/crmtest (see the testing recipe in README).');
+  console.error('If you really mean to wipe that database, re-run with SMOKE_ALLOW_REMOTE=1.');
+  process.exit(1);
+}
+
 await mongoose.connect(dbUri, { serverSelectionTimeoutMS: 5000 });
 await mongoose.connection.dropDatabase();
 await mongoose.disconnect();
