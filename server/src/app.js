@@ -1,6 +1,7 @@
 import './config/timezone.js'; // must come first: pins the process to New York time
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import mongoose from 'mongoose';
 import { errorHandler, notFound } from './lib/errors.js';
 import { metaRouter } from './routes/meta.js';
@@ -56,6 +57,8 @@ export function createApp() {
   console.log(mailInfo().configured ? `[email] sending as ${mailInfo().from}` : '[email] direct sending is off (mailto: fallback); set GMAIL_USER + GMAIL_APP_PASSWORD or SMTP_* to enable');
   const app = express();
   app.disable('x-powered-by');
+  // Gzip JSON responses: a contacts page or the LinkedIn list is 100-300 KB uncompressed, ~20% of that gzipped.
+  app.use(compression());
   app.use(cors({ origin: true }));
   app.use(express.json({ limit: '5mb' }));
 

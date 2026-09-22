@@ -17,6 +17,7 @@
     "copy-db": "node --env-file-if-exists=.env scripts/copy-db.js"
   },
   "dependencies": {
+    "compression": "^1.8.2",
     "cors": "^2.8.5",
     "exceljs": "^4.4.0",
     "express": "^5.1.0",
