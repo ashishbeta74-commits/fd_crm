@@ -29,7 +29,6 @@ const KEYS_BY_COLLECTION = {
   reminders: [['reminders'], ['contact'], ['stats'], ['followups']],
   importbatches: [['imports'], ['stats'], ['meta']],
   linkedsheets: [['imports'], ['meta']],
-  dailyreports: [['stats']],
   emailtemplates: [['templates']],
   scripts: [['scripts']],
   savedviews: [['views']],
@@ -105,8 +104,10 @@ export function useLiveUpdates(token) {
           signal: controller.signal,
           cache: 'no-store',
         });
-        // signed out / old API without the endpoint: stay on polling, do not hammer it
-        if (res.status === 401 || res.status === 404) return;
+        // signed out: stop (signing in again restarts this effect)
+        if (res.status === 401) return;
+        // an API without the endpoint (e.g. mid-redeploy): keep polling, look again in a minute
+        if (res.status === 404) delay = 60_000;
         if (!res.ok || !res.body) throw new Error(`events ${res.status}`);
         // Missed events while disconnected: refresh whatever is on screen once.
         if (connectedOnce) qc.invalidateQueries();
