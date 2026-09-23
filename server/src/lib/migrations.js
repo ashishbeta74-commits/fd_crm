@@ -1,6 +1,7 @@
 // One-off data migrations, run once at start-up (each one is idempotent and cheap when there is nothing to do).
 import mongoose from 'mongoose';
 import { Contact } from '../models/Contact.js';
+import { changes, isLive } from './changes.js';
 import { guessCategory, stageLabel } from '../fields.js';
 import { matchStage } from './status.js';
 import { knownCityRegion, splitLocation } from './geo.js';
@@ -229,11 +230,29 @@ export async function repairStageChangedAt() {
 }
 
 /**
- * While another API instance without the save hook writes stage changes, re-stamp drifted dates every
- * minute (an indexed-scan update over a few thousand contacts: tens of milliseconds).
+ * While another API instance without the save hook writes stage changes, re-stamp drifted dates. With the
+ * live change feed on, this runs a few seconds after contacts change (and every 15 min as a backstop)
+ * instead of scanning every minute while nothing happens; without the feed, every minute as before.
  */
 export function startStageDateRepair(everyMs = 60_000) {
-  const timer = setInterval(() => repairStageChangedAt().catch((err) => console.warn(`[migrate] stage-date repair failed: ${err.message}`)), everyMs);
+  let contactsChanged = false;
+  let debounce = null;
+  let lastRun = Date.now();
+  const run = () => {
+    contactsChanged = false;
+    lastRun = Date.now();
+    repairStageChangedAt().catch((err) => console.warn(`[migrate] stage-date repair failed: ${err.message}`));
+  };
+  changes.on('change', (collections) => {
+    if (!collections.includes('contacts')) return;
+    contactsChanged = true;
+    clearTimeout(debounce);
+    debounce = setTimeout(run, 5000);
+    debounce.unref?.();
+  });
+  const timer = setInterval(() => {
+    if (!isLive() || contactsChanged || Date.now() - lastRun > 15 * 60_000) run();
+  }, everyMs);
   timer.unref?.();
   return timer;
 }

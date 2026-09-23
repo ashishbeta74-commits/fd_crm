@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlarmClock, BellRing, CalendarCheck, CalendarClock, Flag, Linkedin, PhoneCall, PhoneOff, Plus, RefreshCw, Sparkles, Target, ThumbsDown, Upload, Users, Voicemail } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, qk } from '@/lib/api';
+import { isLive, livePoll } from '@/lib/live';
 import { STAGE_MAP } from '@/lib/constants';
 import { pluralize } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -24,7 +25,6 @@ import { DailyReport } from '@/components/dashboard/daily-report';
 import { StageDaysCard } from '@/components/dashboard/stage-days-card';
 import { TIME_ZONE, zonedDateIso, zonedParts } from '@/lib/tz';
 
-const REFETCH_MS = 60_000;
 // Champagne buttons on the dark hero, like "Reserve" on the site.
 const HERO_BUTTON = 'bg-brand-champagne text-brand-espresso hover:bg-brand-gold-bright dark:bg-brand-champagne dark:text-brand-espresso dark:hover:bg-brand-gold-bright';
 // Stages that mean the contact was reached at least once (Connected and everything past it).
@@ -125,7 +125,7 @@ export function Dashboard() {
   const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: qk.stats,
     queryFn: api.stats,
-    refetchInterval: REFETCH_MS,
+    refetchInterval: livePoll,
   });
 
   // Manual refresh (the Refresh button and the Retry buttons) confirms with a toast.
@@ -185,7 +185,7 @@ export function Dashboard() {
               Refresh
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Auto-refreshes every {REFETCH_MS / 1000} s</TooltipContent>
+          <TooltipContent>{isLive() ? 'Updates live as the team works' : 'Auto-refreshes every minute'}</TooltipContent>
         </Tooltip>
       </PageHeader>
 

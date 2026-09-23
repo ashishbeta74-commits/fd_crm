@@ -25,6 +25,8 @@ import { startPush } from './services/push.js';
 import { startStageDateRepair } from './lib/migrations.js';
 import { dayKey, getReport, history, startDailyReports } from './services/dailyReport.js';
 import { pushRouter } from './routes/push.js';
+import { eventsRouter } from './routes/events.js';
+import { startChangeFeed } from './lib/changes.js';
 import { seedTemplates } from './services/emailTemplates.js';
 import { seedScripts } from './services/scripts.js';
 import { scriptsRouter } from './routes/scripts.js';
@@ -39,6 +41,7 @@ export function createApp() {
   startPush();
   startDailyReports();
   startStageDateRepair();
+  startChangeFeed();
   // The dashboard's counts and the filter lists are recomputed in the background, so a page load
   // reads them from memory instead of waiting on the database (which may be a continent away).
   warm('stats', STATS_TTL, computeStats);
@@ -93,6 +96,7 @@ export function createApp() {
   app.use('/api/email', emailRouter);
   app.use('/api/linkedin', linkedinRouter);
   app.use('/api/push', pushRouter);
+  app.use('/api/events', eventsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

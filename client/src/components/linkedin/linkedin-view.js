@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { BookOpen, CircleAlert, Linkedin, Loader2, SearchX, Users, X } from 'lucide-react';
-import { LIVE_MS, api, qk } from '@/lib/api';
+import { api, qk } from '@/lib/api';
+import { livePoll } from '@/lib/live';
 import { pluralize } from '@/lib/format';
 import { LI_STAGES, LI_STATUSES, LI_STEPS } from '@/lib/linkedin';
 import { cn } from '@/lib/utils';
@@ -107,7 +108,7 @@ export function LinkedinView() {
     queryKey: qk.linkedinList(listParams),
     queryFn: () => api.linkedin.list(listParams),
     placeholderData: keepPreviousData,
-    refetchInterval: LIVE_MS,
+    refetchInterval: livePoll,
     enabled: params.tab === 'prospects',
   });
   const selection = useSelection(FILTER_KEYS.map((k) => params[k]).join('|'));

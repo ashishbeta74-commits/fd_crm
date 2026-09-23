@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleAlert, Loader2, Plus, SearchX, Upload, Users } from 'lucide-react';
-import { LIVE_MS, api, qk } from '@/lib/api';
+import { api, qk } from '@/lib/api';
+import { livePoll } from '@/lib/live';
 import { pluralize } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -67,8 +68,16 @@ export function ContactsView() {
     queryKey: qk.contacts(params),
     queryFn: () => api.contacts.list(params),
     placeholderData: keepPreviousData,
-    refetchInterval: LIVE_MS,
+    refetchInterval: livePoll,
   });
+  // Load the next page in the background, so "Next" shows it at once.
+  const qc = useQueryClient();
+  const pages = data?.pages ?? 0;
+  useEffect(() => {
+    if (isPlaceholderData || params.page >= pages) return;
+    const next = { ...params, page: params.page + 1 };
+    qc.prefetchQuery({ queryKey: qk.contacts(next), queryFn: () => api.contacts.list(next), staleTime: 30_000 });
+  }, [qc, params, pages, isPlaceholderData]);
   const selection = useSelection(FILTER_KEYS.map((key) => params[key]).join('|'));
   const { changeStage, stageDialog } = useStageChange();
   // /contacts?new=1 (dashboard shortcut) opens the "Add contact" dialog straight away.

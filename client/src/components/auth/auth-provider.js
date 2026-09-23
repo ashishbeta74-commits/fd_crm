@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, AUTH_EVENT, getCachedUser, getToken, setCachedUser, setToken } from '@/lib/api';
+import { useLiveUpdates } from '@/lib/live';
 
 const AuthContext = createContext({ user: null, status: 'loading', login: async () => {}, logout: () => {}, refresh: async () => {}, setUser: () => {}, isAdmin: false });
 
@@ -40,6 +41,9 @@ export function AuthProvider({ children }) {
     initialData: cached ? { user: cached.user } : undefined,
     initialDataUpdatedAt: cached?.at,
   });
+
+  // Live updates from the API (lib/live.js) while signed in.
+  useLiveUpdates(me.data?.user ? token : '');
 
   // Keep the remembered user in step with what the API last said.
   useEffect(() => {

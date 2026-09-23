@@ -4,7 +4,8 @@ import { startTransition, useOptimistic, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AlertCircle, CalendarPlus, RefreshCw } from 'lucide-react';
-import { LIVE_MS, api, qk } from '@/lib/api';
+import { api, qk } from '@/lib/api';
+import { livePoll } from '@/lib/live';
 import { pluralize } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
@@ -75,7 +76,7 @@ export function FollowupsView() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { data, isPending, isError, error, refetch, isFetching } = useQuery({ queryKey: qk.followups, queryFn: api.followups, refetchInterval: LIVE_MS });
+  const { data, isPending, isError, error, refetch, isFetching } = useQuery({ queryKey: qk.followups, queryFn: api.followups, refetchInterval: livePoll });
 
   const param = searchParams.get('tab');
   const urlTab = TAB_KEYS.includes(param) ? param : defaultTab(data);

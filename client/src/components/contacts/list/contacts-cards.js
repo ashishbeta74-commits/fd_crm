@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePrefetchContact } from '@/hooks/use-prefetch-contact';
 import { Mail, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { daysFromToday, formatDate, formatDateTime, formatTime, relativeDay, timeAgo } from '@/lib/format';
@@ -34,13 +35,14 @@ function ContactCard({ contact: c, selected, onToggle, onStageChange }) {
   const phone = c.contactMain || c.companyNo;
   const overdue = Boolean(c.followUp) && daysFromToday(c.followUp) < 0;
   const subtitle = [c.title, c.companyName].filter(Boolean).join(' · ');
+  const prefetch = usePrefetchContact();
   return (
     <li className={cn('grid min-w-0 grid-cols-1 gap-2.5 rounded-lg border bg-card p-3 transition-colors', selected && 'border-primary/40 bg-accent/40')}>
       <div className="flex items-start gap-3">
         <Checkbox className="mt-1" checked={selected} onCheckedChange={(v) => onToggle(c._id, v === true)} aria-label={`Select ${c.name || 'contact'}`} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <Link href={`/contacts/${c._id}`} className="min-w-0 truncate text-base font-semibold hover:underline">
+            <Link href={`/contacts/${c._id}`} className="min-w-0 truncate text-base font-semibold hover:underline" {...prefetch(c._id)}>
               {c.name || '(no name)'}
             </Link>
             <LinkedInIconLink url={c.contactL1} />

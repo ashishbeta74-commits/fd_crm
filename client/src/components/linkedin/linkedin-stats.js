@@ -2,7 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { AlarmClock, CalendarClock, Eye, Handshake, MessageSquareReply, Send, Target, Trophy, UserPlus } from 'lucide-react';
-import { LIVE_MS, api, qk } from '@/lib/api';
+import { api, qk } from '@/lib/api';
+import { livePoll } from '@/lib/live';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatTile } from '@/components/dashboard/stat-tile';
@@ -21,7 +22,7 @@ export const PERIODS = [
 /** The workbook's Dashboard tab: funnel counts and rates for the chosen period (by date followed). */
 export function LinkedinStats({ period, onPeriod, scope }) {
   const params = { period, scope };
-  const { data, isPending } = useQuery({ queryKey: qk.linkedinStats(params), queryFn: () => api.linkedin.stats(params), refetchInterval: LIVE_MS });
+  const { data, isPending } = useQuery({ queryKey: qk.linkedinStats(params), queryFn: () => api.linkedin.stats(params), refetchInterval: livePoll });
 
   return (
     <section className="grid gap-3" aria-label="LinkedIn outreach numbers">

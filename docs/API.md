@@ -53,6 +53,9 @@ When sending dates to the API, send `"YYYY-MM-DD"` strings (or `null` to clear).
 
 ### `GET /api/health` → `{ ok, db, time }`
 
+### `GET /api/events` - live updates (Server-Sent Events)
+Stays open. Sends `event: hello` `{ live }` on connect, then `event: change` `{ collections: ["contacts", …] }` whenever those collections are written (by anyone - this API, a sheet sync, another instance), batched over ~0.4 s, and `event: live` `{ live }` when the feed goes up or down. `live` is false on a database without change streams (a standalone mongod): clients then poll. A `: ping` comment every 25 s keeps proxies from closing it. Needs the usual `Authorization` header (read it with `fetch`, not `EventSource`).
+
 ### `GET /api/meta`
 `{ stages: [{key,label,description}], fields: [{key,label,type,group,aliases}], activityTypes: [], sheets: ["Leads", …], db: "mongodb://…" }`
 `fields` lists everything a spreadsheet column can be mapped to (used by the import mapping UI).
@@ -76,6 +79,7 @@ Editable fields: `name email title companyName website primaryEmail secondaryEma
 
 ### `GET /api/contacts/:id` → full contact incl. `activities` sorted newest first.
 ### `PATCH /api/contacts/:id` → updated contact. Same body as POST. Stage / booking changes are logged as activities automatically.
+The returned `activities` hold only the newest entries (the latest one before the edit plus those it added); `GET /api/contacts/:id` has the full history. Same for `POST /api/contacts/:id/activities`.
 ### `DELETE /api/contacts/:id` → `{ ok: true }`
 
 ### `POST /api/contacts/:id/activities` → updated contact

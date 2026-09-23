@@ -6,6 +6,7 @@ import { ThemeProvider } from 'next-themes';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/components/auth/auth-provider';
+import { isLive } from '@/lib/live';
 
 export function Providers({ children }) {
   const [client] = useState(
@@ -13,8 +14,9 @@ export function Providers({ children }) {
       new QueryClient({
         defaultOptions: {
           // 401 = signed out; retrying would only delay the sign-in screen.
-          // Ten people work the same data: refresh when a tab regains focus / connection, and pages poll while visible (see LIVE_MS).
-          queries: { staleTime: 10_000, retry: (count, err) => err?.status !== 401 && count < 1, refetchOnWindowFocus: true, refetchOnReconnect: true },
+          // Ten people work the same data. With live updates on (lib/live.js) changes arrive by themselves, so
+          // regaining focus refetches nothing; without them a tab refreshes on focus / reconnect and pages poll (LIVE_MS).
+          queries: { staleTime: 10_000, retry: (count, err) => err?.status !== 401 && count < 1, refetchOnWindowFocus: () => !isLive(), refetchOnReconnect: true },
         },
       }),
   );

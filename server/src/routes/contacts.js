@@ -7,7 +7,7 @@ import { Reminder } from '../models/Reminder.js';
 import { CATEGORY_KEYS, PRIORITY_KEYS, STAGE_KEYS, TEXT_FIELDS, categoryLabel, priorityLabel, stageLabel } from '../fields.js';
 import { addDays, isoDate, parseDate, todayUtc } from '../lib/dates.js';
 import { HttpError } from '../lib/errors.js';
-import { escapeRegex, runPool } from '../lib/pool.js';
+import { escapeRegex } from '../lib/pool.js';
 import { computeDedupeKey } from '../lib/mapping.js';
 import { composeLocation } from '../lib/geo.js';
 import { LI_STEPS } from '../linkedin.js';
@@ -202,11 +202,22 @@ export function applyInput(doc, input) {
   return activities;
 }
 
-async function loadContact(id) {
-  const doc = await Contact.findById(id);
+/**
+ * The contact as a document to edit. `light`: only its newest history entry is loaded - new entries are
+ * still $push-ed onto the full history on save. Use it when the change never reads older entries.
+ */
+async function loadContact(id, { light = false } = {}) {
+  const query = Contact.findById(id);
+  if (light) query.slice('activities', -1);
+  const doc = await query;
   if (!doc) throw new HttpError(404, 'Contact not found');
   return doc;
 }
+
+// A light load returns (and the response carries) only the newest history entries: the one loaded plus
+// those this request added. GET /contacts/:id has the full history.
+// Moving a contact back to New recomputes "last contacted" from its whole history (see applyInput).
+const needsHistory = (input) => input.stage === 'new';
 
 // ---------- list ----------
 contactsRouter.get('/', async (req, res) => {
@@ -305,8 +316,7 @@ const bulkInput = z.object({
 contactsRouter.post('/bulk', async (req, res) => {
   const body = bulkInput.parse(req.body);
   if (body.action === 'delete') {
-    const r = await Contact.deleteMany({ _id: { $in: body.ids } });
-    await Reminder.deleteMany({ contactId: { $in: body.ids } });
+    const [r] = await Promise.all([Contact.deleteMany({ _id: { $in: body.ids } }), Reminder.deleteMany({ contactId: { $in: body.ids } })]);
     return res.json({ deleted: r.deletedCount });
   }
   if (body.action === 'stage' && !body.stage) throw new HttpError(400, 'stage is required');
@@ -314,9 +324,12 @@ contactsRouter.post('/bulk', async (req, res) => {
   if (body.action === 'category' && body.category === undefined) throw new HttpError(400, 'category is required');
   if (body.action === 'leadQuality' && body.leadQuality === undefined) throw new HttpError(400, 'leadQuality is required');
   if ((body.action === 'addTags' || body.action === 'removeTags') && !body.tags?.length) throw new HttpError(400, 'tags are required');
-  const docs = await Contact.find({ _id: { $in: body.ids } });
+  // Only the newest history entry is loaded (new ones are $push-ed), unless moving back to New needs it all.
+  const query = Contact.find({ _id: { $in: body.ids } });
+  if (!(body.action === 'stage' && body.stage === 'new')) query.slice('activities', -1);
+  const docs = await query;
   const lower = new Set((body.tags || []).map((t) => t.toLowerCase()));
-  const results = await runPool(docs, 8, async (doc) => {
+  const changed = docs.filter((doc) => {
     let input;
     if (body.action === 'stage') input = { stage: body.stage };
     else if (body.action === 'priority') input = { priority: body.priority };
@@ -327,12 +340,11 @@ contactsRouter.post('/bulk', async (req, res) => {
     const before = JSON.stringify(doc.tags);
     const changes = applyInput(doc, input);
     const tagsChanged = input.tags !== undefined && JSON.stringify(normalizeTags(input.tags)) !== before;
-    if (changes.length || tagsChanged) await doc.save();
     return changes.length > 0 || tagsChanged;
   });
-  const updated = results.filter((r) => r.ok && r.value).length;
-  const errors = results.filter((r) => !r.ok).length;
-  return res.json({ matched: docs.length, updated, errors });
+  // One bulkWrite for every changed contact (save hooks included) instead of a round trip each.
+  if (changed.length) await Contact.bulkSave(changed);
+  return res.json({ matched: docs.length, updated: changed.length, errors: 0 });
 });
 
 // ---------- create ----------
@@ -352,31 +364,32 @@ contactsRouter.post('/', async (req, res) => {
 
 // ---------- single ----------
 contactsRouter.get('/:id', async (req, res) => {
-  const doc = await Contact.findById(req.params.id).lean();
+  const id = req.params.id;
+  if (!mongoose.isValidObjectId(id)) throw new HttpError(404, 'Contact not found');
+  // The contact and its reminders in one round trip: open reminders first (soonest first), then the last few completed ones.
+  const [doc, open, done] = await Promise.all([
+    Contact.findById(id).lean(),
+    Reminder.find({ contactId: id, done: false }).sort({ at: 1 }).lean(),
+    Reminder.find({ contactId: id, done: true }).sort({ doneAt: -1 }).limit(10).lean(),
+  ]);
   if (!doc) throw new HttpError(404, 'Contact not found');
   // newest first; `fromImport` tells the UI which entries came from a sheet (not deletable)
   doc.activities = [...(doc.activities || [])].sort((a, b) => new Date(b.at) - new Date(a.at)).map((a) => ({ ...a, fromImport: isImportActivity(a) }));
-  // Open reminders first (soonest first), then the last few completed ones.
-  const [open, done] = await Promise.all([
-    Reminder.find({ contactId: doc._id, done: false }).sort({ at: 1 }).lean(),
-    Reminder.find({ contactId: doc._id, done: true }).sort({ doneAt: -1 }).limit(10).lean(),
-  ]);
   doc.reminders = [...open, ...done];
   res.json(doc);
 });
 
 contactsRouter.patch('/:id', async (req, res) => {
   const input = contactInput.parse(req.body);
-  const doc = await loadContact(req.params.id);
+  const doc = await loadContact(req.params.id, { light: !needsHistory(input) });
   applyInput(doc, input);
   await doc.save();
   res.json(doc);
 });
 
 contactsRouter.delete('/:id', async (req, res) => {
-  const r = await Contact.deleteOne({ _id: req.params.id });
+  const [r] = await Promise.all([Contact.deleteOne({ _id: req.params.id }), Reminder.deleteMany({ contactId: req.params.id })]);
   if (!r.deletedCount) throw new HttpError(404, 'Contact not found');
-  await Reminder.deleteMany({ contactId: req.params.id });
   res.json({ ok: true });
 });
 
@@ -396,7 +409,7 @@ const activityInput = z
 
 contactsRouter.post('/:id/activities', async (req, res) => {
   const input = activityInput.parse(req.body);
-  const doc = await loadContact(req.params.id);
+  const doc = await loadContact(req.params.id, { light: !needsHistory(input) });
   if (input.type === 'call') {
     doc.lastContactedAt = new Date();
     doc.activities.push({ type: 'call', message: input.message || (input.stage ? `Call: ${stageLabel(input.stage)}` : 'Call logged') });

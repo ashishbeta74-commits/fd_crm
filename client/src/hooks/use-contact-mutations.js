@@ -39,6 +39,40 @@ function patchCached(qc, id, data) {
   qc.setQueryData(['contact', id], (old) => (old ? { ...old, ...fields } : old));
 }
 
+/** Apply `fn` (contact => contact | null to drop it) to every cached list row whose id is in `ids`. */
+function patchRows(qc, ids, fn) {
+  const set = new Set(ids);
+  qc.setQueriesData({ queryKey: ['contacts'] }, (old) => {
+    if (!old?.items) return old;
+    let dropped = 0;
+    const items = [];
+    for (const c of old.items) {
+      const next = set.has(c._id) ? fn(c) : c;
+      if (next) items.push(next);
+      else dropped += 1;
+    }
+    return dropped ? { ...old, items, total: Math.max(0, old.total - dropped) } : { ...old, items };
+  });
+}
+
+/** What a bulk action does to one row, for the optimistic preview (null = the row goes away). */
+function bulkPreview({ action, stage, priority, category, leadQuality, tags = [] }) {
+  const lower = new Set(tags.map((t) => t.toLowerCase()));
+  return (c) => {
+    if (action === 'delete') return null;
+    if (action === 'stage') return { ...c, stage };
+    if (action === 'priority') return { ...c, priority };
+    if (action === 'category') return { ...c, category };
+    if (action === 'leadQuality') return { ...c, leadQuality };
+    if (action === 'addTags') {
+      const have = new Set((c.tags || []).map((t) => t.toLowerCase()));
+      return { ...c, tags: [...(c.tags || []), ...tags.filter((t) => !have.has(t.toLowerCase()))] };
+    }
+    if (action === 'removeTags') return { ...c, tags: (c.tags || []).filter((t) => !lower.has(t.toLowerCase())) };
+    return c;
+  };
+}
+
 /** Snapshot the cached contact lists + detail so a failed edit can be rolled back. */
 async function snapshot(qc, id) {
   await qc.cancelQueries({ queryKey: ['contacts'] });
@@ -124,10 +158,21 @@ export function useLogActivity() {
 /** DELETE /contacts/:id/followups/last - take back the most recent "Add follow-up" (counter - 1). */
 export function useRemoveLastFollowUp() {
   const invalidate = useInvalidateContacts();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (id) => api.contacts.removeLastFollowUp(id),
+    // the counter drops at once; "last contacted" and the history come back with the server's answer
+    onMutate: async (id) => {
+      const ctx = await snapshot(qc, id);
+      patchRows(qc, [id], (c) => ({ ...c, followUpCount: Math.max(0, (c.followUpCount || 0) - 1) }));
+      qc.setQueryData(['contact', id], (old) => (old ? { ...old, followUpCount: Math.max(0, (old.followUpCount || 0) - 1) } : old));
+      return ctx;
+    },
+    onError: (err, id, ctx) => {
+      rollback(qc, ctx);
+      showError(err);
+    },
     onSuccess: (doc) => invalidate(doc._id),
-    onError: showError,
   });
 }
 
@@ -147,21 +192,43 @@ export function useRemoveActivity() {
 
 export function useDeleteContact() {
   const invalidate = useInvalidateContacts();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (id) => api.contacts.remove(id),
+    // the row leaves the list at once and comes back if the server refuses
+    onMutate: async (id) => {
+      const ctx = await snapshot(qc, id);
+      patchRows(qc, [id], () => null);
+      return ctx;
+    },
+    onError: (err, id, ctx) => {
+      rollback(qc, ctx);
+      showError(err);
+    },
     onSuccess: (_, id) => {
-      invalidate(id);
+      qc.removeQueries({ queryKey: ['contact', id] });
+      invalidate();
       toast.success('Contact deleted');
     },
-    onError: showError,
   });
 }
 
 export function useBulkContacts() {
   const invalidate = useInvalidateContacts();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (body) => api.contacts.bulk(body),
+    // every selected row shows the change at once; the lists are re-read when the server confirms
+    onMutate: async (body) => {
+      await qc.cancelQueries({ queryKey: ['contacts'] });
+      const lists = qc.getQueriesData({ queryKey: ['contacts'] });
+      patchRows(qc, body.ids, bulkPreview(body));
+      return { lists };
+    },
+    onError: (err, body, ctx) => {
+      for (const [key, value] of ctx?.lists || []) qc.setQueryData(key, value);
+      showError(err);
+    },
     onSuccess: () => invalidate(),
-    onError: showError,
   });
 }

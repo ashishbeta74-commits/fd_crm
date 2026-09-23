@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api, qk } from '@/lib/api';
+import { livePoll } from '@/lib/live';
 import { STAGES, STAGE_STYLES } from '@/lib/constants';
 import { formatDateWithDay } from '@/lib/format';
 import { zonedDateIso } from '@/lib/tz';
@@ -15,7 +16,6 @@ import { EmptyState, LIST_ROW, SectionCard } from '@/components/dashboard/sectio
 const PICKABLE = ['prospect', 'voicemail', 'not_interested', 'hung_up', 'started', 'connected', 'wrong_number', 'ready', 'converted', 'done', 'future_booking'];
 const OPTIONS = PICKABLE.map((key) => STAGES.find((s) => s.key === key)).filter(Boolean);
 const DAYS = 14;
-const REFETCH_MS = 60_000;
 const STORAGE_KEY = 'crm:stage-days-stage';
 
 // The Contacts list filtered to the contacts that entered the stage on that day (newest first).
@@ -50,7 +50,7 @@ export function StageDaysCard() {
   const { data, isPending, isError, error } = useQuery({
     queryKey: qk.stageDays(stage, DAYS),
     queryFn: () => api.stageDays(stage, DAYS),
-    refetchInterval: REFETCH_MS,
+    refetchInterval: livePoll,
   });
   const items = data?.items || [];
   const total = items.reduce((n, d) => n + d.count, 0);

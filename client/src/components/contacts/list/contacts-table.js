@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import Link from 'next/link';
+import { usePrefetchContact } from '@/hooks/use-prefetch-contact';
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { daysFromToday, formatDate, formatDateTime, formatDateWithDay, formatTime, relativeDay, timeAgo } from '@/lib/format';
@@ -100,6 +101,7 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange }) {
   // contactL1 is the LinkedIn URL, not a phone: fall back to the company number instead.
   const phone = c.contactMain || c.companyNo;
   const overdue = Boolean(c.followUp) && daysFromToday(c.followUp) < 0;
+  const prefetch = usePrefetchContact();
 
   return (
     // No entrance animation on rows: the animated opacity layer let 1px of the scrolled-under cells show through the frozen ones.
@@ -109,7 +111,7 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange }) {
       </TableCell>
       <TableCell className={frozenCell('name')}>
         <div className="flex max-w-full items-center gap-1.5">
-          <Link href={`/contacts/${c._id}`} className="min-w-0 truncate font-medium hover:underline" title={c.name || undefined}>
+          <Link href={`/contacts/${c._id}`} className="min-w-0 truncate font-medium hover:underline" title={c.name || undefined} {...prefetch(c._id)}>
             {c.name || '(no name)'}
           </Link>
           <LinkedInIconLink url={c.contactL1} />

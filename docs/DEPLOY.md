@@ -83,6 +83,27 @@ moments queued requests for 8 s or more. What helps, most effective first:
    and pages poll once a minute instead of every 15-30 s (a tab that regains focus refreshes immediately
    regardless).
 
+### Live updates instead of polling (2026-09-23)
+
+- **Change feed.** The API watches the database (a MongoDB change stream; Atlas supports it) and
+  streams "what changed" to every open tab over `GET /api/events`. Tabs refetch only what is on
+  screen, within about a second of a teammate's edit, and otherwise poll only every 5 min as a backstop
+  (every minute, as before, when the feed is unavailable - e.g. the embedded dev database).
+- **Dashboard numbers recompute on change, not on a timer.** Stats / meta / reports are recomputed
+  only after a write (or every 5 min for the clock), and a read right after your own edit waits for
+  the fresh numbers instead of getting the cached ones. The stage-date repair also runs after changes
+  instead of scanning every minute.
+- **Fewer and lighter round trips.** An edit or a logged call loads only the newest history entry
+  (new entries are `$push`-ed); bulk actions save every contact in one `bulkWrite` instead of one
+  round trip each; the contact page reads the contact and its reminders in parallel.
+- **Feels instant in the browser.** Bulk actions, delete and "remove follow-up" update the list at once
+  (edits and logged calls already did); hovering a contact starts loading its page; the next page of
+  the list is fetched in the background.
+- Measured and not changed: the list's filters (1-2 ms on Atlas) and page-number paging (0 ms) are
+  already cheap at this size. Search (~60 ms per query plus its count) was tried with a single joined
+  search field, which benchmarked 10-20% *slower* on the real data, so it was not kept; the real fix
+  for search is an Atlas Search index.
+
 ### What the code now does (2026-09-16)
 
 Measured against the live Render service, a cold `GET /api/stats` took **7.3 s** and `/api/meta` **4.8 s**,

@@ -8,7 +8,8 @@ const normalizeBase = (raw) => {
   if (!trimmed) return '/api';
   return /\/api$/.test(trimmed) ? trimmed : `${trimmed}/api`;
 };
-const BASE = normalizeBase(process.env.NEXT_PUBLIC_API_BASE);
+export const API_BASE = normalizeBase(process.env.NEXT_PUBLIC_API_BASE);
+const BASE = API_BASE;
 
 export class ApiError extends Error {
   constructor(status, message, details) {
