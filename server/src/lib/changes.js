@@ -29,6 +29,11 @@ const LIVE_TTL_MS = 5 * 60 * 1000;
 // Changes are collected this long and sent as one event (an import writes thousands of contacts).
 const BATCH_MS = 400;
 const RETRY_MS = 30_000;
+// A sheet sync stamps every linked sheet it looks at (lastCheckedAt / lastCheck / lastError, and the
+// write-back's lastPush*): bookkeeping nobody's screen depends on. Updates touching only these are ignored,
+// so a sync that finds nothing new does not make every tab refetch.
+const BOOKKEEPING = /^(lastCheckedAt|lastCheck|lastError|writeBack\.lastPush\w*|updatedAt)$/;
+const isBookkeeping = (c) => c.ns?.coll === 'linkedsheets' && c.operationType === 'update' && Array.isArray(c.fields) && c.fields.every((f) => BOOKKEEPING.test(f));
 
 let live = false;
 let stream = null;
@@ -74,12 +79,18 @@ function open() {
   const db = mongoose.connection.db;
   if (!db || mongoose.connection.readyState !== 1) return scheduleRetry();
   try {
-    stream = db.watch([{ $match: { 'ns.coll': { $in: WATCHED } } }, { $project: { ns: 1, operationType: 1 } }]);
+    // `fields` = the names of the updated fields only (not their values: a contact's history can be large)
+    stream = db.watch([
+      { $match: { 'ns.coll': { $in: WATCHED } } },
+      { $project: { ns: 1, operationType: 1, fields: { $map: { input: { $objectToArray: { $ifNull: ['$updateDescription.updatedFields', {}] } }, in: '$$this.k' } } } },
+    ]);
   } catch (err) {
     console.warn(`[live] change feed unavailable: ${err.message}`);
     return scheduleRetry();
   }
-  stream.on('change', (c) => queue([c.ns?.coll].filter(Boolean)));
+  stream.on('change', (c) => {
+    if (!isBookkeeping(c)) queue([c.ns?.coll].filter(Boolean));
+  });
   stream.on('error', (err) => {
     const s = stream;
     stream = null;
