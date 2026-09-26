@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { ACTIVITY_TYPES, CATEGORY_KEYS, PRIORITY_KEYS, STAGE_KEYS, priorityRank } from '../fields.js';
 import { computeDedupeKey } from '../lib/mapping.js';
 import { events } from '../lib/events.js';
+import { currentUser } from '../lib/context.js';
 import { LI_CONNECTION_KEYS, LI_OVERRIDE_KEYS, LI_STAGE_KEYS, LI_STATUS_KEYS, computeLinkedinStage, countTouchpoints, lastTouch, liStage } from '../linkedin.js';
 
 const { Schema, model } = mongoose;
@@ -17,6 +18,10 @@ const ActivitySchema = new Schema({
   // 'import' = written by a sheet import (kept as the audit trail). No default on purpose: entries that
   // predate this field must fall through to the type / message check below, on hydrated docs too.
   source: { type: String, enum: ['app', 'import'] },
+  // Who did it (the signed-in team member). Stamped on save; absent on entries from before 2026-09-25,
+  // on sheet syncs and on start-up jobs. byName is kept so the history reads without a user lookup.
+  byId: { type: Schema.Types.ObjectId, ref: 'User' },
+  byName: { type: String },
 });
 
 /** True for history entries a sheet import wrote. Older entries have no `source`: recognised by type / message. */
@@ -124,6 +129,12 @@ const ContactSchema = new Schema(
     extra: { type: Schema.Types.Mixed, default: () => ({}) },
     dedupeKey: { type: String, default: null, index: true },
     lastContactedAt: { type: Date, default: null },
+    // The team member who last changed the contact in the app (sheet syncs leave it alone).
+    updatedBy: {
+      id: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+      name: { type: String, default: '' },
+      at: { type: Date, default: null },
+    },
   },
   { timestamps: true, minimize: false },
 );
@@ -157,10 +168,26 @@ export function normalizeTags(list) {
   return out.slice(0, 30);
 }
 
+/** Credit the signed-in person with the change and with every history entry this save adds. */
+function stampUser(doc) {
+  const user = currentUser();
+  if (!user) return;
+  let added = false;
+  for (const a of doc.activities || []) {
+    if (!a.isNew || a.byName !== undefined || a.source === 'import') continue;
+    a.byId = user.id;
+    a.byName = user.name;
+    added = true;
+  }
+  const edited = doc.modifiedPaths().some((p) => !/^(activities|updatedBy)(\.|$)/.test(p));
+  if (doc.isNew || added || edited) doc.updatedBy = { id: user.id, name: user.name, at: new Date() };
+}
+
 ContactSchema.pre('save', function preSave(next) {
   this.dedupeKey = computeDedupeKey(this);
   this.tags = normalizeTags(this.tags);
   this.priorityRank = priorityRank(this.priority);
+  stampUser(this);
   if (this.isModified('stage') || (this.isNew && !this.stageChangedAt)) this.stageChangedAt = new Date();
   // LinkedIn pipeline: derive the stage and the dashboard helpers from what was logged.
   const li = this.linkedin || {};

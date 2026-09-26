@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, Menu, Upload, Users, X } from 'lucide-react';
+import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, Menu, Upload, UserRound, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/me', label: 'My dashboard', icon: UserRound },
   { href: '/contacts', label: 'Contacts', icon: Users, children: SidebarViews },
   { href: '/follow-ups', label: 'Follow-ups', icon: CalendarClock },
   { href: '/linkedin', label: 'LinkedIn CRM', icon: Linkedin, accent: true },

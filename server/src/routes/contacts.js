@@ -4,7 +4,7 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { Contact, isImportActivity, normalizeTags } from '../models/Contact.js';
 import { Reminder } from '../models/Reminder.js';
-import { CATEGORY_KEYS, PRIORITY_KEYS, STAGE_KEYS, TEXT_FIELDS, categoryLabel, priorityLabel, stageLabel } from '../fields.js';
+import { CATEGORY_KEYS, FIELDS, PRIORITY_KEYS, STAGE_KEYS, TEXT_FIELDS, categoryLabel, priorityLabel, stageLabel } from '../fields.js';
 import { addDays, isoDate, parseDate, todayUtc } from '../lib/dates.js';
 import { HttpError } from '../lib/errors.js';
 import { escapeRegex } from '../lib/pool.js';
@@ -146,11 +146,29 @@ const lastLoggedTouch = (doc, except = null) => {
   return touches.length ? new Date(Math.max(...touches.map((a) => new Date(a.at).getTime()))) : null;
 };
 
-/** Apply validated input to a document, logging stage/booking changes as activities. */
-export function applyInput(doc, input) {
+// How edited fields are named in the "Edited …" history line.
+const FIELD_LABELS = { ...Object.fromEntries(FIELDS.map((f) => [f.key, f.label])), contactL1: 'LinkedIn', contactMain: 'Contact phone', companyNo: 'Company phone', followUpNote: 'Follow-up note' };
+
+/**
+ * Apply validated input to a document, logging stage/booking changes as activities.
+ * `logEdits: false` skips the "Edited …" line (a logged call / follow-up already says what happened).
+ */
+export function applyInput(doc, input, { logEdits = true } = {}) {
   const activities = [];
   const before = { leadQuality: doc.leadQuality };
-  for (const k of TEXT_FIELDS) if (input[k] !== undefined) doc[k] = input[k];
+  // Plain field edits get one "Edited …" line (lead quality has its own line below), so the history
+  // shows who changed what. A new contact has its own "created" line instead.
+  const edited = [];
+  for (const k of TEXT_FIELDS) {
+    if (input[k] === undefined) continue;
+    const prev = doc[k] || '';
+    doc[k] = input[k];
+    // compared after the schema's trim / lower-case setters, so re-sending the same value is no edit
+    if (k !== 'leadQuality' && (doc[k] || '') !== prev) edited.push(FIELD_LABELS[k] || k);
+  }
+  if (input.followUp !== undefined && isoDate(doc.followUp) !== isoDate(parseDate(input.followUp))) edited.push('Follow-up date');
+  if (input.tags !== undefined && JSON.stringify(normalizeTags(input.tags)) !== JSON.stringify(doc.tags || [])) edited.push('Tags');
+  if (logEdits && edited.length && !doc.isNew) activities.push({ type: 'edit', message: `Edited ${edited.join(', ')}` });
   // Editing the place parts refreshes the display line unless the line itself was edited too.
   if (input.location === undefined && ['city', 'state', 'country'].some((k) => input[k] !== undefined)) {
     const line = composeLocation(doc);
@@ -428,14 +446,14 @@ contactsRouter.post('/:id/activities', async (req, res) => {
     const by = { call: 'by call', message: 'by message', email: 'by email' }[input.channel] || '';
     const summary = `Follow-up #${doc.followUpCount} done${by ? ` ${by}` : ''}${next ? ` - next on ${isoDate(next)}` : ''}`;
     doc.activities.push({ type: 'followup', channel: input.channel || '', message: input.message?.trim() ? `${summary}: ${input.message.trim()}` : summary });
-    applyInput(doc, { stage: input.stage, followUp: input.followUp ?? null, followUpNote: input.followUp ? input.followUpNote || '' : '', booking: input.booking });
+    applyInput(doc, { stage: input.stage, followUp: input.followUp ?? null, followUpNote: input.followUp ? input.followUpNote || '' : '', booking: input.booking }, { logEdits: false });
     await doc.save();
     return res.json(doc);
   } else {
     if (!input.message?.trim()) throw new HttpError(400, 'message is required for a note');
     doc.activities.push({ type: 'note', message: input.message.trim() });
   }
-  applyInput(doc, { stage: input.type === 'note' ? input.stage : undefined, followUp: input.followUp, followUpNote: input.followUpNote, booking: input.booking });
+  applyInput(doc, { stage: input.type === 'note' ? input.stage : undefined, followUp: input.followUp, followUpNote: input.followUpNote, booking: input.booking }, { logEdits: false });
   await doc.save();
   res.json(doc);
 });

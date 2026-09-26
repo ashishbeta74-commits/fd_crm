@@ -144,6 +144,7 @@ export const api = {
   dailyRange: (from, to) => request(`/stats/daily/range${toQuery({ from, to })}`),
   // Contacts that entered a stage per New York day (dashboard "Prospects by day")
   stageDays: (stage, days) => request(`/stats/stage-days${toQuery({ stage, days })}`),
+  myStats: (params) => request(`/stats/me${toQuery(params)}`),
   followups: () => request('/followups'),
 
   contacts: {
@@ -273,6 +274,7 @@ export const qk = {
   dailyHistory: (days) => ['stats', 'daily', 'history', days || 14],
   dailyRange: (from, to) => ['stats', 'daily', 'range', from, to],
   stageDays: (stage, days) => ['stats', 'stage-days', stage, days],
+  myStats: (params) => ['stats', 'me', params || {}],
   followups: ['followups'],
   contacts: (params) => ['contacts', params || {}],
   contact: (id) => ['contact', id],

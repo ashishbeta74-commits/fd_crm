@@ -23,7 +23,7 @@ const WATCHED = ['contacts', 'reminders', 'importbatches', 'linkedsheets', 'emai
 // Collections whose writes change the dashboard / filter lists / reports (the cached data keys).
 const DATA = new Set(['contacts', 'reminders', 'importbatches', 'linkedsheets']);
 // Cache keys derived from those collections (see routes/stats.js, routes/meta.js).
-const DATA_KEYS = ['stats', 'meta', 'daily:', 'history:', 'range:', 'stage-days:'];
+const DATA_KEYS = ['stats', 'meta', 'daily:', 'history:', 'range:', 'stage-days:', 'me:', 'team:'];
 // With the feed on, cached data only ages by the clock ("today", "overdue"), so it may live this long.
 const LIVE_TTL_MS = 5 * 60 * 1000;
 // Changes are collected this long and sent as one event (an import writes thousands of contacts).

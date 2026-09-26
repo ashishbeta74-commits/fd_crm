@@ -5,6 +5,7 @@ import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import { Setting, User } from '../models/User.js';
 import { HttpError } from './errors.js';
 import { bust, memo } from './cache.js';
+import { runAsUser } from './context.js';
 
 /** Forget the cached record of one user (or of everyone) so a password change / deactivation applies on the next request. */
 export const bustUser = (id) => bust(id ? `user:${id}` : 'user:');
@@ -100,7 +101,8 @@ export async function requireAuth(req, res, next) {
     const version = user?.passwordChangedAt ? new Date(user.passwordChangedAt).getTime() : 0;
     if (!user || !user.active || version !== data.v) throw new HttpError(401, 'Your session is no longer valid - please sign in again');
     req.user = user;
-    return next();
+    // Everything this request saves is stamped with the person (see lib/context.js, models/Contact.js).
+    return runAsUser(user, next);
   } catch (err) {
     return next(err);
   }

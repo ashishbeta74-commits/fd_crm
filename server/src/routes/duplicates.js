@@ -193,7 +193,8 @@ export function foldContact(primary, other) {
   if (other.lastContactedAt && (!primary.lastContactedAt || other.lastContactedAt > primary.lastContactedAt)) primary.lastContactedAt = other.lastContactedAt;
   for (const id of other.importBatchIds || []) primary.importBatchIds.addToSet(id);
   if (!primary.source?.fileName && other.source?.fileName) primary.source = { ...other.source };
-  for (const a of other.activities || []) primary.activities.push({ type: a.type, message: a.message, fromStage: a.fromStage ?? null, toStage: a.toStage ?? null, at: a.at });
+  // Keeps who did each entry ('' = unknown, so the merge does not credit the person merging).
+  for (const a of other.activities || []) primary.activities.push({ type: a.type, message: a.message, fromStage: a.fromStage ?? null, toStage: a.toStage ?? null, at: a.at, channel: a.channel || '', source: a.source, byId: a.byId, byName: a.byName ?? '' });
 }
 
 const mergeInput = z.object({

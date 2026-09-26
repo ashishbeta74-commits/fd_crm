@@ -5,6 +5,7 @@ import { PRIORITY_KEYS, priorityLabel } from '../fields.js';
 import { Contact } from '../models/Contact.js';
 import { Reminder } from '../models/Reminder.js';
 import { formatZoned } from '../config/timezone.js';
+import { currentUser } from '../lib/context.js';
 
 export const remindersRouter = Router();
 
@@ -63,7 +64,8 @@ async function loadReminder(id) {
 }
 
 async function logOnContact(contactId, message) {
-  await Contact.updateOne({ _id: contactId }, { $push: { activities: { type: 'reminder', message, at: new Date() } } });
+  const by = currentUser();
+  await Contact.updateOne({ _id: contactId }, { $push: { activities: { type: 'reminder', message, at: new Date(), ...(by && { byId: by.id, byName: by.name }) } } });
 }
 
 // Everything open, grouped for the Follow-ups page / reminders list: overdue, today, week, later (+ recent done).

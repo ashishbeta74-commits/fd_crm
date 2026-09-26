@@ -8,6 +8,7 @@ import { matchPriority, matchStage, parseStatus, splitTags } from '../lib/status
 import { normalizeTags } from '../models/Contact.js';
 import { computeDedupeKey, suggestMapping } from '../lib/mapping.js';
 import { runPool } from '../lib/pool.js';
+import { runAsSystem } from '../lib/context.js';
 import { valueToText } from './excel.js';
 
 const joinWith = (a, b, sep = '\n') => (a && b ? `${a}${sep}${b}` : a || b || '');
@@ -395,7 +396,12 @@ export async function resolveListName(requested, source, fileName = '') {
 /**
  * @param {{ upload: { fileName: string, sheets: any[], source?: object }, plans: any[], strategy: 'skip'|'update', updateStage: boolean, requirePhone?: boolean, listName?: string, resyncOf?: any }} opts
  */
-export async function runImport({ upload, plans, strategy, updateStage, requirePhone = true, listName = '', resyncOf = null }) {
+export function runImport(options) {
+  // Contacts a sheet import writes are not "changed by" whoever pressed Import / Sync now.
+  return runAsSystem(() => importInner(options));
+}
+
+async function importInner({ upload, plans, strategy, updateStage, requirePhone = true, listName = '', resyncOf = null }) {
   const source = { ...(upload.source || { type: 'file' }) };
   if (!source.title) source.title = baseName(upload.fileName);
   source.listName = await resolveListName(listName, source, upload.fileName);

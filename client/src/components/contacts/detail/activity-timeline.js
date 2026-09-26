@@ -158,7 +158,15 @@ function ActivityItem({ activity, onDelete }) {
             <StageChange from={activity.fromStage} to={activity.toStage} />
           </div>
         ) : null}
-        <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(activity.at)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {formatDateTime(activity.at)}
+          {activity.byName ? (
+            <>
+              {' · by '}
+              <span className="font-medium text-foreground/80">{activity.byName}</span>
+            </>
+          ) : null}
+        </p>
       </div>
     </li>
   );

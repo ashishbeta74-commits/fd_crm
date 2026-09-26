@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Router } from 'express';
 import { Contact } from '../models/Contact.js';
 import { ImportBatch } from '../models/ImportBatch.js';
@@ -6,6 +7,7 @@ import { PRIORITY_KEYS, STAGE_KEYS } from '../fields.js';
 import { addDays, todayUtc } from '../lib/dates.js';
 import { HttpError } from '../lib/errors.js';
 import { memo } from '../lib/cache.js';
+import { personSummary, teamBoard } from '../services/personal.js';
 import { MAX_RANGE_DAYS, dayKey, dayRange, getRangeReport, getReport, history, shiftDay, spanDays } from '../services/dailyReport.js';
 
 export const statsRouter = Router();
@@ -61,6 +63,27 @@ statsRouter.get('/stage-days', async (req, res) => {
   if (!STAGE_KEYS.includes(stage)) throw new HttpError(400, 'unknown stage');
   const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
   res.json({ stage, days, items: await memo(`stage-days:${stage}:${days}`, STATS_TTL, () => stageDays(stage, days)) });
+});
+
+// ---------- My dashboard ----------
+// GET /api/stats/me?from=YYYY-MM-DD&to=YYYY-MM-DD[&user=<id>] - what one person did over the days (New York
+// calendar, inclusive; default today). Everyone sees their own; the super admin can pick anyone and also
+// gets the whole team's table.
+statsRouter.get('/me', async (req, res) => {
+  const today = dayKey();
+  const to = String(req.query.to || today);
+  const from = String(req.query.from || to);
+  if (!dayRange(from) || !dayRange(to)) throw new HttpError(400, 'from and to must be YYYY-MM-DD');
+  if (from > to) throw new HttpError(400, 'from must not be after to');
+  if (spanDays(from, to) > 92) throw new HttpError(400, 'the range can cover at most 92 days');
+  const isAdmin = req.user?.role === 'admin';
+  const wanted = isAdmin && req.query.user ? String(req.query.user) : req.user?._id ? String(req.user._id) : '';
+  if (!mongoose.isValidObjectId(wanted)) throw new HttpError(400, 'Sign in as a team member to see a personal dashboard');
+  const [person, team] = await Promise.all([
+    memo(`me:${wanted}:${from}:${to}`, 10_000, () => personSummary(from, to, wanted)),
+    isAdmin ? memo(`team:${from}:${to}`, 10_000, () => teamBoard(from, to)) : null,
+  ]);
+  res.json({ from, to, today, userId: wanted, ...person, team });
 });
 
 const pad2 = (n) => String(n).padStart(2, '0');

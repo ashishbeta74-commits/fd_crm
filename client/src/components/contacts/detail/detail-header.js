@@ -16,6 +16,7 @@ import { ContactDialog } from '@/components/contacts/contact-dialog';
 import { linkedInHref, linkedInLabel } from '@/components/contacts/list/linkedin-link';
 import { LogCallDialog, NoteDialog } from '@/components/contacts/log-call-dialog';
 import { StageSelect, useStageChange } from '@/components/contacts/stage-controls';
+import { formatDateTime, timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { StageBadgeTip } from './badge-tips';
 import { TOUCH_SM } from './detail-card';
@@ -53,6 +54,11 @@ export function DetailHeader({ contact }) {
             <PriorityBadge priority={contact.priority} withTooltip />
             <TagList tags={contact.tags} max={6} />
           </div>
+          {contact.updatedBy?.name ? (
+            <p className="mt-2 text-xs text-muted-foreground" title={formatDateTime(contact.updatedBy.at)}>
+              Last changed by <span className="font-medium text-foreground/80">{contact.updatedBy.name}</span> · {timeAgo(contact.updatedBy.at)}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:justify-end">
           <Button size="sm" className={ACTION} onClick={() => setDialog('call')}>
