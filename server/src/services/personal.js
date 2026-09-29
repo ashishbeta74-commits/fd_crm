@@ -28,20 +28,37 @@ function entriesPipeline(start, end, userId) {
 
 const emptyRow = () => ({ calls: 0, worked: 0, followUps: 0, emails: 0, notes: 0, edits: 0, bookings: 0, linkedin: 0, stageMoves: {}, stageContacts: {} });
 
-/** Counts per person: distinct contacts called / worked / moved into each stage, and entries per type. */
+/**
+ * Counts per person: distinct contacts called / worked / moved into each stage, and entries per type.
+ * Stage changes count by their result: per person and contact only the stage they left it in counts, so a
+ * mistake that was corrected (Prospect -> Voice Mail) counts once as Voice Mail, and one that was undone
+ * (New -> Prospect -> New) counts for nothing.
+ */
 export async function peopleCounts(from, to, userId = null) {
   const start = dayRange(from).start;
   const end = dayRange(to).end;
-  const rows = await Contact.aggregate([
-    ...entriesPipeline(start, end, userId),
-    { $group: { _id: { by: '$a.byId', type: '$a.type', toStage: '$a.toStage', channel: '$a.channel' }, count: { $sum: 1 }, contacts: { $addToSet: '$_id' } } },
+  const [rows, stageRows] = await Promise.all([
+    Contact.aggregate([
+      ...entriesPipeline(start, end, userId),
+      { $match: { 'a.type': { $ne: 'stage' } } },
+      { $group: { _id: { by: '$a.byId', type: '$a.type', channel: '$a.channel' }, count: { $sum: 1 }, contacts: { $addToSet: '$_id' } } },
+    ]),
+    Contact.aggregate([
+      ...entriesPipeline(start, end, userId),
+      { $match: { 'a.type': 'stage' } },
+      { $sort: { 'a.at': 1 } },
+      { $group: { _id: { by: '$a.byId', contact: '$_id' }, from: { $first: '$a.fromStage' }, to: { $last: '$a.toStage' } } },
+    ]),
   ]);
   const people = new Map();
-  for (const r of rows) {
-    const key = String(r._id.by);
+  const person = (by) => {
+    const key = String(by);
     if (!people.has(key)) people.set(key, { ...emptyRow(), called: new Set(), workedSet: new Set(), moved: {} });
-    const p = people.get(key);
-    const { type, toStage, channel } = r._id;
+    return people.get(key);
+  };
+  for (const r of rows) {
+    const p = person(r._id.by);
+    const { type, channel } = r._id;
     const ids = r.contacts.map(String);
     if (type === 'followup') p.followUps += r.count;
     if (type === 'email') p.emails += r.count;
@@ -49,13 +66,20 @@ export async function peopleCounts(from, to, userId = null) {
     if (type === 'edit') p.edits += r.count;
     if (type === 'booking') p.bookings += r.count;
     if (type === 'linkedin') p.linkedin += r.count;
-    if (type === 'call' || (type === 'followup' && (channel === 'call' || !channel)) || (type === 'stage' && CALL_RESULTS.has(toStage))) ids.forEach((id) => p.called.add(id));
+    if (type === 'call' || (type === 'followup' && (channel === 'call' || !channel))) ids.forEach((id) => p.called.add(id));
     if (WORK_TYPES.has(type)) ids.forEach((id) => p.workedSet.add(id));
-    if (type === 'stage' && toStage) {
-      p.stageMoves[toStage] = (p.stageMoves[toStage] || 0) + r.count;
-      p.moved[toStage] = p.moved[toStage] || new Set();
-      ids.forEach((id) => p.moved[toStage].add(id));
-    }
+  }
+  for (const r of stageRows) {
+    const { to: stage, from: startedIn } = r;
+    // moved back to where it started: nothing happened
+    if (!stage || stage === startedIn) continue;
+    const p = person(r._id.by);
+    const id = String(r._id.contact);
+    if (CALL_RESULTS.has(stage)) p.called.add(id);
+    p.workedSet.add(id);
+    p.stageMoves[stage] = (p.stageMoves[stage] || 0) + 1;
+    p.moved[stage] = p.moved[stage] || new Set();
+    p.moved[stage].add(id);
   }
   const out = new Map();
   for (const [key, p] of people) {
