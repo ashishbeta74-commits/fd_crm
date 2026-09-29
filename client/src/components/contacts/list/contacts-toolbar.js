@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarRange, ChevronDown, Download, MapPin, Plus, Search, Upload, X } from 'lucide-react';
+import { CalendarRange, ChevronDown, Download, MapPin, Plus, Search, SlidersHorizontal, Upload, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { CATEGORIES, CATEGORY_STYLES, LEAD_QUALITIES, PRIORITIES, PRIORITY_STYLES, STAGES, STAGE_STYLES, leadQualityStyle } from '@/lib/constants';
 import { SavedViewsMenu } from '@/components/views/saved-views-menu';
@@ -37,6 +37,9 @@ const PRIORITY_OPTIONS = [...PRIORITIES.map((p) => ({ key: p.key, label: p.label
 // The two kinds of contact the team works, as one-click toggles beside the search box. Nothing selected = everyone.
 const TYPE_TOGGLES = CATEGORIES.filter((c) => c.key === 'travel_advisor' || c.key === 'executive_assistant');
 
+// URL params of the filters that live behind "More filters".
+const MORE_FILTER_KEYS = ['leadQuality', 'sheet', 'country', 'state', 'city', 'priority', 'tag', 'booking'];
+
 const csv = (s) => (s ? s.split(',').filter(Boolean) : []);
 
 /** Search box that pushes its value to the URL 300ms after the last keystroke. */
@@ -63,7 +66,8 @@ function SearchInput({ value, onCommit }) {
         type="search"
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Search name, email, company, city, state…"
+        placeholder="Search name, email, company…"
+        title="Searches name, email, company, phone, city and state"
         aria-label="Search contacts"
         autoComplete="off"
         className="pl-8"
@@ -354,6 +358,11 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
   const commitSearch = useCallback((q) => setParams({ q }), [setParams]);
   const { data: meta } = useMeta();
   const exportHref = api.contacts.exportUrl({ ...params, page: undefined, limit: undefined });
+  // The everyday filters stay on the first row; the rest fold behind "More filters". The panel
+  // opens on its own while one of them is set, so an active filter is never hidden.
+  const moreActive = MORE_FILTER_KEYS.filter((k) => params[k]).length;
+  const [moreOpen, setMoreOpen] = useState(null);
+  const showMore = moreOpen ?? moreActive > 0;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -362,16 +371,18 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
       <TypeToggles value={params.category} onChange={(category) => setParams({ category })} />
       <MultiFilter label="Stage" options={STAGE_OPTIONS} value={params.stage} onChange={(stage) => setParams({ stage })} />
       <StageDateFilter from={params.stageFrom} to={params.stageTo} onChange={setParams} />
-      <LeadQualityFilter value={params.leadQuality} onChange={(leadQuality) => setParams({ leadQuality })} />
-
-      <SheetFilter value={params.sheet} onChange={(sheet) => setParams({ sheet })} />
-      <PlaceFilter label="Country" items={meta?.countries} value={params.country} onChange={(country) => setParams({ country })} />
-      <PlaceFilter label="State" items={meta?.states} value={params.state} onChange={(state) => setParams({ state })} />
-      <PlaceFilter label="City" items={meta?.cities} value={params.city} onChange={(city) => setParams({ city })} />
-      <MultiFilter label="Priority" options={PRIORITY_OPTIONS} value={params.priority} onChange={(priority) => setParams({ priority })} />
-      <TagFilter value={params.tag} onChange={(tag) => setParams({ tag })} />
       <SingleFilter label="Follow-up" options={FOLLOW_UP_OPTIONS} value={params.followUp} onChange={(followUp) => setParams({ followUp })} />
-      <SingleFilter label="Booking" options={BOOKING_OPTIONS} value={params.booking} onChange={(booking) => setParams({ booking })} />
+      <Button
+        variant="outline"
+        onClick={() => setMoreOpen(!showMore)}
+        aria-expanded={showMore}
+        aria-controls="more-contact-filters"
+        className={cn('font-normal transition-colors duration-200', moreActive && ACTIVE)}
+      >
+        <SlidersHorizontal />
+        {showMore ? 'Fewer filters' : 'More filters'}
+        {moreActive ? <span className="rounded-full bg-primary px-1.5 text-xs leading-5 text-primary-foreground tabular-nums">{moreActive}</span> : null}
+      </Button>
       {params.batch ? (
         <Tooltip>
           <TooltipTrigger asChild>
@@ -415,6 +426,22 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
           Add contact
         </Button>
       </div>
+
+      {showMore ? (
+        <div
+          id="more-contact-filters"
+          className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/30 p-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 motion-safe:duration-200"
+        >
+          <LeadQualityFilter value={params.leadQuality} onChange={(leadQuality) => setParams({ leadQuality })} />
+          <SheetFilter value={params.sheet} onChange={(sheet) => setParams({ sheet })} />
+          <PlaceFilter label="Country" items={meta?.countries} value={params.country} onChange={(country) => setParams({ country })} />
+          <PlaceFilter label="State" items={meta?.states} value={params.state} onChange={(state) => setParams({ state })} />
+          <PlaceFilter label="City" items={meta?.cities} value={params.city} onChange={(city) => setParams({ city })} />
+          <MultiFilter label="Priority" options={PRIORITY_OPTIONS} value={params.priority} onChange={(priority) => setParams({ priority })} />
+          <TagFilter value={params.tag} onChange={(tag) => setParams({ tag })} />
+          <SingleFilter label="Booking" options={BOOKING_OPTIONS} value={params.booking} onChange={(booking) => setParams({ booking })} />
+        </div>
+      ) : null}
     </div>
   );
 }

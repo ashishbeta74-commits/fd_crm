@@ -97,6 +97,17 @@ export function timeAgo(d) {
   return formatDateTime(dt);
 }
 
+/** Always relative ("3 d ago", "5 wk ago", "4 mo ago"), for lines that already show the date next to it. */
+export function ageText(d) {
+  const dt = toDate(d);
+  if (!dt) return '';
+  const days = Math.round((Date.now() - dt.getTime()) / 86400000);
+  if (days < 7) return timeAgo(dt);
+  if (days < 60) return `${Math.round(days / 7)} wk ago`;
+  if (days < 730) return `${Math.round(days / 30)} mo ago`;
+  return `${Math.round(days / 365)} yr ago`;
+}
+
 export function initials(name) {
   return String(name || '')
     .split(/\s+/)

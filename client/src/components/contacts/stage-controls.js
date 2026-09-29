@@ -13,18 +13,17 @@ import { formatDateTime, isoDate, weekdayName } from '@/lib/format';
 import { useUpdateContact } from '@/hooks/use-contact-mutations';
 import { cn } from '@/lib/utils';
 
-/** Compact stage dropdown showing the stage colour dot. */
+/** Compact stage dropdown showing the stage colour dot (the selected item renders its own dot). */
 export function StageSelect({ value, onChange, disabled, className, size = 'sm' }) {
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger size={size} className={cn('h-8 gap-1.5', className)} aria-label="Stage">
-        <span className={cn('size-2 rounded-full transition-colors duration-200', STAGE_STYLES[value]?.dot)} aria-hidden="true" />
         <SelectValue placeholder="Stage" />
       </SelectTrigger>
       <SelectContent>
         {STAGES.map((s) => (
           <SelectItem key={s.key} value={s.key}>
-            <span className={cn('size-2 rounded-full', STAGE_STYLES[s.key].dot)} aria-hidden="true" />
+            <span className={cn('size-2 shrink-0 rounded-full', STAGE_STYLES[s.key].dot)} aria-hidden="true" />
             {s.label}
           </SelectItem>
         ))}

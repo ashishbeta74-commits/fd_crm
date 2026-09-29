@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, Menu, Upload, UserRound, Users, X } from 'lucide-react';
+import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, Menu, PanelLeftClose, PanelLeftOpen, Upload, UserRound, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -28,6 +28,20 @@ const NAV = [
   { href: '/scripts', label: 'Phone scripts & Q&A', icon: BookOpen },
   { href: '/import', label: 'Import', icon: Upload },
 ];
+
+const SIDEBAR_KEY = 'crm:sidebar';
+
+/** Folded to an icon rail? The saved choice wins; otherwise labels show when there is room for them next to the tables. */
+function readSidebarPref() {
+  if (typeof window === 'undefined') return true;
+  try {
+    const saved = localStorage.getItem(SIDEBAR_KEY);
+    if (saved) return saved === 'rail';
+  } catch {
+    /* storage blocked: fall through to the width rule */
+  }
+  return window.innerWidth < 1280;
+}
 
 // One easing for everything that moves in the shell, so the rail, drawer, labels and page slide together.
 const EASE = 'ease-[cubic-bezier(0.22,1,0.36,1)]';
@@ -133,6 +147,17 @@ export function AppShell({ children }) {
   const [openPath, setOpenPath] = useState(null);
   const open = openPath === pathname;
   const setOpen = (v) => setOpenPath(v ? pathname : null);
+  // The shell only renders after the session check (client side), so reading the saved choice here cannot mismatch hydration.
+  const [collapsed, setCollapsed] = useState(readSidebarPref);
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    try {
+      localStorage.setItem(SIDEBAR_KEY, next ? 'rail' : 'full');
+    } catch {
+      /* private mode: the choice just isn't remembered */
+    }
+  };
 
   // Nothing but the sign-in screen renders until the session is confirmed, so no page fires API calls unauthenticated.
   if (status === 'anonymous' || status === 'error') return <LoginScreen />;
@@ -144,16 +169,31 @@ export function AppShell({ children }) {
 
   return (
     <div className="flex min-h-svh">
-      {/* desktop rail: icons only, always (labels are tooltips). It sticks to the viewport so only the page content scrolls. */}
-      <aside className="hidden w-16 shrink-0 flex-col items-center border-r bg-sidebar px-2 py-3 md:sticky md:top-0 md:flex md:h-svh md:self-start md:overflow-x-hidden md:overflow-y-auto" aria-label="Sidebar">
-        <Brand collapsed />
+      {/* desktop sidebar: labelled on wide screens, an icon rail (labels as tooltips) when folded. It sticks to the viewport so only the page content scrolls. */}
+      <aside
+        className={cn(
+          'hidden shrink-0 flex-col border-r bg-sidebar px-2 py-3 transition-[width] duration-300 md:sticky md:top-0 md:flex md:h-svh md:self-start md:overflow-x-hidden md:overflow-y-auto',
+          EASE,
+          collapsed ? 'w-16 items-center' : 'w-60',
+        )}
+        aria-label="Sidebar"
+      >
+        <Brand collapsed={collapsed} />
         <div className="mt-4 w-full">
-          <NavLinks collapsed />
+          <NavLinks collapsed={collapsed} />
         </div>
-        <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-3">
+        <div className={cn('mt-auto flex w-full gap-1 border-t pt-3', collapsed ? 'flex-col items-center' : 'flex-wrap items-center')}>
           <ThemeToggle side="right" />
           <ReminderBell />
-          <UserMenu compact />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={toggleCollapsed} aria-label={collapsed ? 'Show menu labels' : 'Hide menu labels'} aria-expanded={!collapsed} className={cn(!collapsed && 'ml-auto')}>
+                {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{collapsed ? 'Show menu labels' : 'Hide menu labels'}</TooltipContent>
+          </Tooltip>
+          <UserMenu compact={collapsed} className={cn(!collapsed && 'mt-1 w-full')} />
         </div>
       </aside>
 

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePrefetchContact } from '@/hooks/use-prefetch-contact';
 import { ChevronDown, ChevronUp, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { daysFromToday, formatDate, formatDateTime, formatDateWithDay, formatTime, relativeDay, timeAgo } from '@/lib/format';
+import { daysFromToday, formatDate, formatDateTime, formatDateWithDay, formatTime, relativeDay, timeAgo, ageText } from '@/lib/format';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -156,7 +156,7 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange }) {
           {/* The trigger shows the stage label itself, so no tooltip here. */}
           {/* Not disabled while a save is in flight: the new stage is already showing (the edit is
               applied to the cache first), so freezing every row's dropdown for a second only gets in the way. */}
-          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} className="w-36" />
+          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} className="w-40" />
           <LogCallButton contact={c} compact />
         </div>
       </TableCell>
@@ -164,7 +164,7 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange }) {
         {c.stageChangedAt ? (
           <div>
             <div>{formatDateTime(c.stageChangedAt)}</div>
-            <div className="text-xs">{timeAgo(c.stageChangedAt)}</div>
+            <div className="text-xs">{ageText(c.stageChangedAt)}</div>
           </div>
         ) : (
           <Dash />

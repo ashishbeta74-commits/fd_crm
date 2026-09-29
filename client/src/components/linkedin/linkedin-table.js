@@ -43,7 +43,6 @@ export function LinkedinStatusSelect({ contact, className, size = 'sm' }) {
   return (
     <Select value={value} onValueChange={(status) => update.mutate({ id: contact._id, data: { status } })} disabled={update.isPending}>
       <SelectTrigger size={size} className={cn('h-8 gap-1.5', def.badge, className)} aria-label="Status">
-        <span className={cn('size-2 shrink-0 rounded-full', def.dot)} aria-hidden="true" />
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
