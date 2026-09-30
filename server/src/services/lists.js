@@ -2,6 +2,7 @@ import { Contact } from '../models/Contact.js';
 import { ImportBatch } from '../models/ImportBatch.js';
 import { LinkedSheet } from '../models/LinkedSheet.js';
 import { SavedView } from '../models/SavedView.js';
+import { SheetRating } from '../models/SheetRating.js';
 import { HttpError } from '../lib/errors.js';
 import { escapeRegex } from '../lib/pool.js';
 
@@ -39,6 +40,8 @@ export async function renameList(fromRaw, toRaw, { sheetId = null } = {}) {
     LinkedSheet.updateMany(sheetId ? { $or: [{ _id: sheetId }, { name: from }] } : { name: from }, { $set: { name: to } }),
     SavedView.updateMany({ 'params.sheet': from }, { $set: { 'params.sheet': to } }),
   ]);
+  // the star rating moves with the name (after the clash check above, so `to` has no rating of its own)
+  await SheetRating.updateOne({ name: from }, { $set: { name: to } });
   return {
     from,
     to,

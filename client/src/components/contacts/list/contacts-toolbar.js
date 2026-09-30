@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarRange, ChevronDown, Download, MapPin, Plus, Search, SlidersHorizontal, Upload, X } from 'lucide-react';
-import { api } from '@/lib/api';
+import { useQuery } from '@tanstack/react-query';
+import { Building2, CalendarRange, ChevronDown, Download, Loader2, MapPin, Phone, Plus, Search, SlidersHorizontal, Star, Upload, X } from 'lucide-react';
+import { api, qk } from '@/lib/api';
+import { StarsText, starsFor } from '@/components/sheet-stars';
 import { CATEGORIES, CATEGORY_STYLES, LEAD_QUALITIES, PRIORITIES, PRIORITY_STYLES, STAGES, STAGE_STYLES, leadQualityStyle } from '@/lib/constants';
 import { SavedViewsMenu } from '@/components/views/saved-views-menu';
 import { cn } from '@/lib/utils';
@@ -24,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useMeta } from '@/hooks/use-meta';
-import { BOOKING_OPTIONS, FOLLOW_UP_OPTIONS } from '@/components/contacts/list/contact-filters';
+import { BOOKING_OPTIONS, FOLLOW_UP_OPTIONS, STAR_OPTIONS } from '@/components/contacts/list/contact-filters';
 
 // Radix Select items cannot be '', so "no filter" needs a sentinel that no real value can collide with.
 const ALL = '__all__';
@@ -38,7 +40,7 @@ const PRIORITY_OPTIONS = [...PRIORITIES.map((p) => ({ key: p.key, label: p.label
 const TYPE_TOGGLES = CATEGORIES.filter((c) => c.key === 'travel_advisor' || c.key === 'executive_assistant');
 
 // URL params of the filters that live behind "More filters".
-const MORE_FILTER_KEYS = ['leadQuality', 'sheet', 'country', 'state', 'city', 'priority', 'tag', 'booking'];
+const MORE_FILTER_KEYS = ['company', 'areaCode', 'sheet', 'stars', 'leadQuality', 'country', 'state', 'city', 'priority', 'tag', 'booking'];
 
 const csv = (s) => (s ? s.split(',').filter(Boolean) : []);
 
@@ -163,10 +165,10 @@ const PLACE_LIMIT = 40;
  * of places. Options come from meta with contact counts; a value in the URL stays selectable even if
  * it is not (or no longer) in the list. "Not set" matches contacts without that field.
  */
-function PlaceFilter({ label, items, value, onChange }) {
+function PlaceFilter({ label, items, value, onChange, icon: Icon = MapPin, allowNone = true, prefixSingle = false, loading = false, onOpenChange }) {
   const [term, setTerm] = useState('');
   const selected = csv(value);
-  const known = (items || []).map((p) => ({ key: p.name, label: p.name, count: p.count }));
+  const known = (items || []).map((p) => ({ key: p.name, label: p.label || p.name, count: p.count }));
   const extra = selected.filter((v) => v !== 'none' && !known.some((k) => k.key === v)).map((v) => ({ key: v, label: v }));
   const all = [...extra, ...known];
   const t = term.trim().toLowerCase();
@@ -179,13 +181,27 @@ function PlaceFilter({ label, items, value, onChange }) {
     else next.add(key);
     onChange([...all.filter((o) => next.has(o.key)).map((o) => o.key), ...(next.has('none') ? ['none'] : [])].join(','));
   };
-  const summary = selected.length === 0 ? label : selected.length === 1 ? (selected[0] === 'none' ? `${label}: not set` : selected[0]) : `${label} · ${selected.length}`;
+  const summary =
+    selected.length === 0
+      ? label
+      : selected.length === 1
+        ? selected[0] === 'none'
+          ? `${label}: not set`
+          : prefixSingle
+            ? `${label}: ${selected[0]}`
+            : selected[0]
+        : `${label} · ${selected.length}`;
 
   return (
-    <DropdownMenu onOpenChange={(o) => !o && setTerm('')}>
+    <DropdownMenu
+      onOpenChange={(o) => {
+        if (!o) setTerm('');
+        onOpenChange?.(o);
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className={cn('max-w-48 font-normal transition-colors duration-200', selected.length && ACTIVE)} aria-label={`${label} filter`}>
-          <MapPin className="opacity-60" />
+          <Icon className="opacity-60" />
           <span className="truncate">{summary}</span>
           <ChevronDown className="opacity-50" />
         </Button>
@@ -212,13 +228,24 @@ function PlaceFilter({ label, items, value, onChange }) {
               {o.count ? <span className="ml-2 text-xs text-muted-foreground tabular-nums">{o.count}</span> : null}
             </DropdownMenuCheckboxItem>
           ))}
-          {!shown.length ? <p className="px-2 py-3 text-center text-xs text-muted-foreground">No {label.toLowerCase()} matches “{term.trim()}”.</p> : null}
+          {loading && !known.length ? (
+            <p className="flex items-center justify-center gap-2 px-2 py-3 text-xs text-muted-foreground">
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              Loading…
+            </p>
+          ) : !shown.length ? (
+            <p className="px-2 py-3 text-center text-xs text-muted-foreground">{term.trim() ? `No ${label.toLowerCase()} matches “${term.trim()}”.` : `No ${label.toLowerCase()} yet.`}</p>
+          ) : null}
           {matches.length > PLACE_LIMIT ? <p className="px-2 py-1.5 text-center text-xs text-muted-foreground">{matches.length - PLACE_LIMIT} more · keep typing to narrow down</p> : null}
         </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuCheckboxItem checked={selected.includes('none')} onCheckedChange={() => toggle('none')} onSelect={(e) => e.preventDefault()}>
-          Not set
-        </DropdownMenuCheckboxItem>
+        {allowNone ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuCheckboxItem checked={selected.includes('none')} onCheckedChange={() => toggle('none')} onSelect={(e) => e.preventDefault()}>
+              Not set
+            </DropdownMenuCheckboxItem>
+          </>
+        ) : null}
         {selected.length ? (
           <>
             <DropdownMenuSeparator />
@@ -337,6 +364,8 @@ function SheetFilter({ value, onChange }) {
   const sheets = (data?.sheets || []).filter(Boolean);
   // Keep the URL's sheet selectable even before meta loads (or if it is no longer known).
   const names = value && !sheets.includes(value) ? [value, ...sheets] : sheets;
+  // best-rated lists first, then A-Z
+  const sorted = [...names].sort((a, b) => starsFor(data?.sheetStars, b) - starsFor(data?.sheetStars, a) || a.localeCompare(b));
   return (
     <Select value={value || ALL} onValueChange={(v) => onChange(v === ALL ? '' : v)}>
       <SelectTrigger className={cn('max-w-56', value && ACTIVE)} aria-label="Sheet filter">
@@ -344,9 +373,57 @@ function SheetFilter({ value, onChange }) {
       </SelectTrigger>
       <SelectContent>
         <SelectItem value={ALL}>All sheets</SelectItem>
-        {names.map((name) => (
+        {sorted.map((name) => (
           <SelectItem key={name} value={name}>
             {name}
+            <StarsText stars={starsFor(data?.sheetStars, name)} className="text-xs" />
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Companies with contact counts; the list is loaded the first time the filter opens (or when one is already picked). */
+function CompanyFilter({ value, onChange }) {
+  const [opened, setOpened] = useState(false);
+  const { data, isPending } = useQuery({ queryKey: qk.metaCompanies, queryFn: api.metaCompanies, enabled: opened || Boolean(value), staleTime: 60_000 });
+  return (
+    <PlaceFilter
+      label="Company"
+      icon={Building2}
+      items={data?.items}
+      loading={isPending}
+      onOpenChange={(o) => o && setOpened(true)}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+
+/** Area codes found on contact or company phones, labelled with their state ("212 · NY"). */
+function AreaCodeFilter({ value, onChange }) {
+  const { data } = useMeta();
+  const items = (data?.areaCodes || []).map((a) => ({ name: a.code, label: a.region ? `${a.code} · ${a.region}` : a.code, count: a.count }));
+  return <PlaceFilter label="Area code" icon={Phone} items={items} allowNone={false} prefixSingle value={value} onChange={onChange} />;
+}
+
+/** Contacts from lists rated at least N stars (set on the Import page), or from unrated lists. */
+function StarsFilter({ value, onChange }) {
+  const { data } = useMeta();
+  const rated = Object.keys(data?.sheetStars || {}).length;
+  return (
+    <Select value={value || ALL} onValueChange={(v) => onChange(v === ALL ? '' : v)}>
+      <SelectTrigger className={cn(value && ACTIVE)} aria-label="Sheet stars filter" title={rated ? undefined : 'Rate sheets with stars on the Import page first'}>
+        <Star className="opacity-60" />
+        <span className="text-muted-foreground">Sheet stars:</span>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ALL}>All</SelectItem>
+        {STAR_OPTIONS.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -432,8 +509,11 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
           id="more-contact-filters"
           className="flex w-full flex-wrap items-center gap-2 rounded-lg border border-dashed bg-muted/30 p-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1 motion-safe:duration-200"
         >
-          <LeadQualityFilter value={params.leadQuality} onChange={(leadQuality) => setParams({ leadQuality })} />
+          <CompanyFilter value={params.company} onChange={(company) => setParams({ company })} />
+          <AreaCodeFilter value={params.areaCode} onChange={(areaCode) => setParams({ areaCode })} />
           <SheetFilter value={params.sheet} onChange={(sheet) => setParams({ sheet })} />
+          <StarsFilter value={params.stars} onChange={(stars) => setParams({ stars })} />
+          <LeadQualityFilter value={params.leadQuality} onChange={(leadQuality) => setParams({ leadQuality })} />
           <PlaceFilter label="Country" items={meta?.countries} value={params.country} onChange={(country) => setParams({ country })} />
           <PlaceFilter label="State" items={meta?.states} value={params.state} onChange={(state) => setParams({ state })} />
           <PlaceFilter label="City" items={meta?.cities} value={params.city} onChange={(city) => setParams({ city })} />

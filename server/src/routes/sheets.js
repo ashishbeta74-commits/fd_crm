@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { HttpError } from '../lib/errors.js';
 import { parseDate, utcDate } from '../lib/dates.js';
 import { LinkedSheet } from '../models/LinkedSheet.js';
+import { SheetRating } from '../models/SheetRating.js';
+import { bust } from '../lib/cache.js';
 import { parseSheetUrl, sheetUrl } from '../services/sheetLink.js';
 import { listSources } from '../services/sync.js';
 import { renameList } from '../services/lists.js';
@@ -79,9 +81,21 @@ sheetsRouter.patch('/:id', async (req, res) => {
 });
 
 // Rename a list everywhere (contacts, import batches, saved sheet entry, saved views): { from, to, sheetId? }
+// Rate a list 1-5 stars (by the list name contacts carry); 0 removes the rating.
+sheetsRouter.put('/rating', async (req, res) => {
+  const body = z.object({ name: z.string().trim().min(1).max(200), stars: z.number().int().min(0).max(5) }).parse(req.body);
+  if (body.stars === 0) await SheetRating.deleteOne({ name: body.name });
+  else await SheetRating.updateOne({ name: body.name }, { $set: { stars: body.stars, ratedBy: req.user?.displayName || req.user?.username || '' } }, { upsert: true });
+  bust('meta');
+  res.json({ name: body.name, stars: body.stars });
+});
+
 sheetsRouter.post('/rename', async (req, res) => {
   const body = z.object({ from: z.string().trim().min(1).max(200), to: z.string().trim().min(1).max(120), sheetId: z.string().optional() }).parse(req.body);
-  res.json(await renameList(body.from, body.to, { sheetId: body.sheetId || null }));
+  const result = await renameList(body.from, body.to, { sheetId: body.sheetId || null });
+  // the filter lists (sheet names, ratings) change with it
+  bust('meta');
+  res.json(result);
 });
 
 // Two-way sync status: whether a service account is configured and which columns the CRM writes.

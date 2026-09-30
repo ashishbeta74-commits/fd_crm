@@ -126,6 +126,8 @@ export const api = {
   delete: (path) => request(path, { method: 'DELETE' }),
 
   meta: () => request('/meta'),
+  // company names + counts for the Company filter (loaded when it opens)
+  metaCompanies: () => request('/meta/companies'),
   health: () => request('/health'),
 
   auth: {
@@ -188,6 +190,8 @@ export const api = {
     // two-way sync: push CRM state into the sheet now / auth status
     push: (id) => request(`/sheets/${id}/push`, { method: 'POST', body: {} }),
     writeback: () => request('/sheets/writeback'),
+    // star rating of a list by name (1-5, 0 clears)
+    rate: (name, stars) => request('/sheets/rating', { method: 'PUT', body: { name, stars } }),
   },
 
   // Saved filter sets for the Contacts page
@@ -269,6 +273,7 @@ export const LIVE_MS = 60_000;
 // React Query keys, shared so mutations can invalidate the right lists.
 export const qk = {
   meta: ['meta'],
+  metaCompanies: ['meta', 'companies'],
   stats: ['stats'],
   dailyReport: (date) => ['stats', 'daily', date || 'today'],
   dailyHistory: (days) => ['stats', 'daily', 'history', days || 14],

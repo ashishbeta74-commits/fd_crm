@@ -29,6 +29,7 @@ const KEYS_BY_COLLECTION = {
   reminders: [['reminders'], ['contact'], ['stats'], ['followups']],
   importbatches: [['imports'], ['stats'], ['meta']],
   linkedsheets: [['imports'], ['meta']],
+  sheetratings: [['meta'], ['contacts']],
   emailtemplates: [['templates']],
   scripts: [['scripts']],
   savedviews: [['views']],

@@ -4,6 +4,8 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { Contact, isImportActivity, normalizeTags } from '../models/Contact.js';
 import { Reminder } from '../models/Reminder.js';
+import { SheetRating } from '../models/SheetRating.js';
+import { areaCodeRegex } from '../lib/areaCodes.js';
 import { CATEGORY_KEYS, FIELDS, PRIORITY_KEYS, STAGE_KEYS, TEXT_FIELDS, categoryLabel, priorityLabel, stageLabel } from '../fields.js';
 import { addDays, isoDate, parseDate, todayUtc } from '../lib/dates.js';
 import { HttpError } from '../lib/errors.js';
@@ -35,6 +37,12 @@ export const listQuery = z.object({
   country: z.string().optional(),
   state: z.string().optional(),
   city: z.string().optional(),
+  // comma list of company names (exact, case-insensitive); "none" = not set
+  company: z.string().optional(),
+  // comma list of 3-digit area codes, matched on the contact phone or the company phone
+  areaCode: z.string().regex(/^\d{3}(,\d{3})*$/).optional(),
+  // sheet rating: "4" = lists rated 4 stars or more, "none" = lists nobody rated yet
+  stars: z.enum(['1', '2', '3', '4', '5', 'none']).optional(),
   followUp: z.enum(['any', 'overdue', 'today', 'week', 'none']).optional(),
   booking: z.enum(['any', 'upcoming', 'none']).optional(),
   // "In stage since": contacts that entered their current stage between two New York calendar days (YYYY-MM-DD, inclusive)
@@ -54,7 +62,18 @@ const localDay = (iso, days = 0) => {
   return new Date(y, m - 1, d + days);
 };
 
-export function buildFilter(q) {
+/**
+ * The lists a `stars` filter stands for (the ratings live in their own collection), as regexes: a rated
+ * list also covers its multi-tab sub-lists ("<list> - <tab>", see services/lists.js).
+ */
+export async function starredSheets(stars) {
+  if (!stars) return null;
+  const rows = await SheetRating.find(stars === 'none' ? {} : { stars: { $gte: Number(stars) } }).select('name').lean();
+  return rows.map((r) => new RegExp(`^${escapeRegex(r.name)}(?: - .*)?$`));
+}
+
+/** `rated` = the result of starredSheets(q.stars): lists to keep, or with stars=none, the rated lists to leave out. */
+export function buildFilter(q, rated = null) {
   const filter = {};
   if (q.q) {
     const rx = new RegExp(escapeRegex(q.q), 'i');
@@ -78,14 +97,23 @@ export function buildFilter(q) {
   }
   if (q.priority) filter.priority = { $in: csv(q.priority).flatMap((v) => (v === 'none' ? ['', null] : [v])) };
   if (q.category) filter.category = { $in: csv(q.category).flatMap((v) => (v === 'none' ? ['', null] : [v])) };
-  for (const k of ['country', 'state', 'city', 'leadQuality']) {
+  // URL param -> contact field
+  for (const [k, field] of [['country', 'country'], ['state', 'state'], ['city', 'city'], ['leadQuality', 'leadQuality'], ['company', 'companyName']]) {
     if (!q[k]) continue;
     const values = csv(q[k]);
     const named = values.filter((v) => v !== 'none').map((v) => new RegExp(`^${escapeRegex(v)}$`, 'i'));
     const clauses = [];
-    if (values.includes('none')) clauses.push({ [k]: { $in: ['', null] } }, { [k]: { $exists: false } });
-    if (named.length) clauses.push({ [k]: { $in: named } });
+    if (values.includes('none')) clauses.push({ [field]: { $in: ['', null] } }, { [field]: { $exists: false } });
+    if (named.length) clauses.push({ [field]: { $in: named } });
     filter.$and = [...(filter.$and || []), { $or: clauses }];
+  }
+  if (q.areaCode) {
+    const codes = csv(q.areaCode);
+    filter.$and = [...(filter.$and || []), { $or: codes.flatMap((c) => [{ contactMain: areaCodeRegex(c) }, { companyNo: areaCodeRegex(c) }]) }];
+  }
+  if (q.stars && rated) {
+    const clause = q.stars === 'none' ? { 'source.sheetName': { $nin: rated } } : { 'source.sheetName': { $in: rated } };
+    filter.$and = [...(filter.$and || []), clause];
   }
   if (q.batch) {
     // every contact an import created OR updated (re-syncs only update, so source.batchId alone would show nothing)
@@ -240,7 +268,7 @@ const needsHistory = (input) => input.stage === 'new';
 // ---------- list ----------
 contactsRouter.get('/', async (req, res) => {
   const q = listQuery.parse(req.query);
-  const filter = buildFilter(q);
+  const filter = buildFilter(q, await starredSheets(q.stars));
   const sort = { [q.sort]: q.dir === 'asc' ? 1 : -1, _id: 1 };
   const [items, total] = await Promise.all([
     Contact.find(filter).sort(sort).skip((q.page - 1) * q.limit).limit(q.limit).select('-activities').lean(),
@@ -253,7 +281,7 @@ contactsRouter.get('/', async (req, res) => {
 // ---------- export (same filters as list) ----------
 contactsRouter.get('/export', async (req, res) => {
   const q = listQuery.parse(req.query);
-  const filter = buildFilter(q);
+  const filter = buildFilter(q, await starredSheets(q.stars));
   const sort = { [q.sort]: q.dir === 'asc' ? 1 : -1, _id: 1 };
   const items = await Contact.find(filter).sort(sort).limit(20000).select('-activities').lean();
 

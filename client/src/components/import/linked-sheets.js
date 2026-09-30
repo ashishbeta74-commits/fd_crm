@@ -14,6 +14,7 @@ import { AddSheetForm } from '@/components/import/add-sheet-form';
 import { EmptyState, ErrorState } from '@/components/import/status-blocks';
 import { RenameListButton } from '@/components/import/rename-list-dialog';
 import { SyncNowButton } from '@/components/import/sync-now-button';
+import { SheetStars } from '@/components/sheet-stars';
 import { WritebackCell, WritebackInfo } from '@/components/import/writeback-settings';
 
 const STRATEGY = { skip: 'Skip existing', update: 'Update existing' };
@@ -98,6 +99,8 @@ function SourceRow({ s, writeBackConfigured }) {
           {imported ? <span>{`${STRATEGY[s.strategy] || s.strategy || ''}${s.updateStage ? ' + stage' : ''}`}</span> : null}
         </div>
         {s.note ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{s.note}</p> : null}
+        {/* rated by the list name its contacts carry, which the Contacts "Sheet stars" filter matches */}
+        {imported && s.listName ? <SheetStars name={s.listName} className="mt-1.5 -ml-0.5" /> : null}
       </div>
 
       <div className="grid min-w-0 gap-1.5">

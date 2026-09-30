@@ -19,9 +19,9 @@ changes.setMaxListeners(0); // one listener per open browser tab
 // Not `dailyreports`: computing today's report saves it (a fresh capturedAt every time), so watching it
 // would make every recompute look like a change and trigger the next one. Reports derive from contacts
 // and reminders, whose changes already mark them stale.
-const WATCHED = ['contacts', 'reminders', 'importbatches', 'linkedsheets', 'emailtemplates', 'scripts', 'savedviews'];
+const WATCHED = ['contacts', 'reminders', 'importbatches', 'linkedsheets', 'sheetratings', 'emailtemplates', 'scripts', 'savedviews'];
 // Collections whose writes change the dashboard / filter lists / reports (the cached data keys).
-const DATA = new Set(['contacts', 'reminders', 'importbatches', 'linkedsheets']);
+const DATA = new Set(['contacts', 'reminders', 'importbatches', 'linkedsheets', 'sheetratings']);
 // Cache keys derived from those collections (see routes/stats.js, routes/meta.js).
 const DATA_KEYS = ['stats', 'meta', 'daily:', 'history:', 'range:', 'stage-days:', 'me:', 'team:'];
 // With the feed on, cached data only ages by the clock ("today", "overdue"), so it may live this long.

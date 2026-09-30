@@ -14,6 +14,7 @@ import { EmptyState, ErrorState } from '@/components/import/status-blocks';
 import { RenameListButton } from '@/components/import/rename-list-dialog';
 import { SyncNowButton } from '@/components/import/sync-now-button';
 import { UndoImportButton } from '@/components/import/undo-import-button';
+import { SheetStars } from '@/components/sheet-stars';
 
 const STATUS = {
   done: { label: 'Done', variant: 'secondary' },
@@ -37,12 +38,14 @@ function SourceCell({ batch }) {
     </span>
   ) : null;
   if (!linked) {
+    // Uploaded files are rated here; Google Sheets are rated in the linked sheets list above (one row per sheet, not per sync).
     return (
       <div className="grid gap-0.5">
         <span className="block max-w-[16rem] truncate" title={name}>
           {name}
         </span>
         {originLine}
+        {batch.source?.listName && !batch.undoneAt ? <SheetStars name={batch.source.listName} className="-ml-0.5" /> : null}
       </div>
     );
   }

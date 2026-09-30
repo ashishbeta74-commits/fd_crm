@@ -42,7 +42,17 @@ export const SORT_COLUMNS = {
 };
 
 /** Params that narrow the result set (page / limit / sort / dir only shape it). */
-export const FILTER_KEYS = ['q', 'stage', 'stageFrom', 'stageTo', 'leadQuality', 'category', 'country', 'state', 'city', 'sheet', 'batch', 'tag', 'priority', 'followUp', 'booking'];
+export const FILTER_KEYS = ['q', 'stage', 'stageFrom', 'stageTo', 'leadQuality', 'category', 'company', 'areaCode', 'country', 'state', 'city', 'sheet', 'stars', 'batch', 'tag', 'priority', 'followUp', 'booking'];
+
+/** Sheet rating filter: "4" = lists rated 4 stars or more. */
+export const STAR_OPTIONS = [
+  { value: '5', label: '★★★★★ only' },
+  { value: '4', label: '★★★★ & up' },
+  { value: '3', label: '★★★ & up' },
+  { value: '2', label: '★★ & up' },
+  { value: '1', label: '★ & up' },
+  { value: 'none', label: 'Not rated' },
+];
 
 /** Keys a saved view stores (filters + sort). */
 export const VIEW_KEYS = [...FILTER_KEYS, 'sort', 'dir'];
@@ -65,10 +75,14 @@ export function parseListParams(sp) {
     stageTo: isoDay(get('stageTo')),
     leadQuality: get('leadQuality'),
     category: get('category'),
+    company: get('company'),
+    // 3-digit codes only; the API rejects anything else
+    areaCode: /^\d{3}(,\d{3})*$/.test(get('areaCode')) ? get('areaCode') : '',
     country: get('country'),
     state: get('state'),
     city: get('city'),
     sheet: get('sheet'),
+    stars: oneOf(get('stars'), STAR_OPTIONS.map((o) => o.value), ''),
     batch: get('batch'),
     tag: get('tag'),
     priority: get('priority'),
