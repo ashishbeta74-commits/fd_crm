@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { STAGES, STAGE_MAP, STAGE_STYLES } from '@/lib/constants';
+import { STAGES, STAGE_MAP, STAGE_STYLES, stageAttempt, stageWithAttempt } from '@/lib/constants';
 import { isoDate, weekdayName } from '@/lib/format';
 import { useLogActivity } from '@/hooks/use-contact-mutations';
 import { cn } from '@/lib/utils';
@@ -78,6 +78,8 @@ export function LogCallDialog({ contact, open, onOpenChange, onSaved }) {
               {CALL_RESULT_STAGES.map((key) => {
                 const s = STAGE_MAP[key];
                 const selected = stage === key;
+                // the contact's current result again = its next attempt ("Voice Mail 3")
+                const again = key === contact.stage;
                 return (
                   <Tooltip key={key}>
                     <TooltipTrigger asChild>
@@ -90,10 +92,10 @@ export function LogCallDialog({ contact, open, onOpenChange, onSaved }) {
                           selected ? cn(STAGE_STYLES[key].badge, 'ring-2 ring-ring/40') : 'bg-background hover:bg-accent hover:text-accent-foreground',
                         )}
                       >
-                        {s.label}
+                        {again ? stageWithAttempt(key, stageAttempt(contact) + 1) : s.label}
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>{s.description}</TooltipContent>
+                    <TooltipContent>{again ? `Called again: records attempt ${stageAttempt(contact) + 1}` : s.description}</TooltipContent>
                   </Tooltip>
                 );
               })}

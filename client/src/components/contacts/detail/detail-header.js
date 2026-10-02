@@ -17,6 +17,7 @@ import { linkedInHref, linkedInLabel } from '@/components/contacts/list/linkedin
 import { LogCallDialog, NoteDialog } from '@/components/contacts/log-call-dialog';
 import { StageSelect, useStageChange } from '@/components/contacts/stage-controls';
 import { formatDateTime, timeAgo } from '@/lib/format';
+import { stageAttempt } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { StageBadgeTip } from './badge-tips';
 import { TOUCH_SM } from './detail-card';
@@ -50,7 +51,7 @@ export function DetailHeader({ contact }) {
           <h1 className="text-2xl font-semibold tracking-tight wrap-break-word">{contact.name || contact.email || 'Unnamed contact'}</h1>
           {subtitle ? <p className="mt-1 text-sm text-muted-foreground wrap-break-word">{subtitle}</p> : null}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <StageBadgeTip stage={contact.stage} />
+            <StageBadgeTip stage={contact.stage} attempt={stageAttempt(contact)} />
             <PriorityBadge priority={contact.priority} withTooltip />
             <TagList tags={contact.tags} max={6} />
           </div>
@@ -94,6 +95,7 @@ export function DetailHeader({ contact }) {
           {/* Failures are already toasted by the mutation hook; swallow the rejection so it is not reported as unhandled. */}
           <StageSelect
             value={contact.stage}
+            contact={contact}
             onChange={(stage) => changeStage(contact, stage).catch(() => {})}
             disabled={pending}
             className="min-h-9 flex-1 sm:min-h-0 sm:flex-none"

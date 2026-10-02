@@ -156,7 +156,7 @@ function ContactRow({ contact: c, selected, onToggle, onStageChange }) {
           {/* The trigger shows the stage label itself, so no tooltip here. */}
           {/* Not disabled while a save is in flight: the new stage is already showing (the edit is
               applied to the cache first), so freezing every row's dropdown for a second only gets in the way. */}
-          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} className="w-40" />
+          <StageSelect value={c.stage} contact={c} onChange={(stage) => onStageChange(c, stage)} className="w-40" />
           <LogCallButton contact={c} compact />
         </div>
       </TableCell>

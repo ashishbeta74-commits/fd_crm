@@ -18,6 +18,13 @@ export const STAGE_KEYS = STAGES.map((s) => s.key);
 export const STAGE_MAP = Object.fromEntries(STAGES.map((s) => [s.key, s]));
 export const stageLabel = (key) => STAGE_MAP[key]?.label || key || '';
 
+// Call results that can be recorded again on the same contact: each is another attempt ("Voice Mail 3").
+export const REPEATABLE_STAGES = new Set(['started', 'connected', 'voicemail', 'wrong_number', 'hung_up', 'not_interested']);
+/** Attempt number of the contact's current stage (1 unless it was recorded again; same rule as the API). */
+export const stageAttempt = (c) => (c?.stageAttempts?.stage === c?.stage && c.stageAttempts.count > 1 ? c.stageAttempts.count : 1);
+/** "Voice Mail 3" for a third attempt, plain "Voice Mail" for the first. */
+export const stageWithAttempt = (key, attempt) => `${stageLabel(key)}${attempt > 1 ? ` ${attempt}` : ''}`;
+
 // Mirrors PRIORITIES in server/src/fields.js. '' = no priority.
 export const PRIORITIES = [
   { key: 'urgent', label: 'Urgent', rank: 4, description: 'Needs action today' },

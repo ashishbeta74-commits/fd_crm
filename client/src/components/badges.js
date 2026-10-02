@@ -1,6 +1,6 @@
 import { Flag, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { CATEGORY_MAP, CATEGORY_STYLES, PRIORITY_MAP, PRIORITY_STYLES, STAGE_MAP, STAGE_STYLES, categoryLabel, leadQualityStyle, priorityLabel, stageLabel } from '@/lib/constants';
+import { CATEGORY_MAP, CATEGORY_STYLES, PRIORITY_MAP, PRIORITY_STYLES, STAGE_MAP, STAGE_STYLES, categoryLabel, leadQualityStyle, priorityLabel, stageLabel, stageWithAttempt } from '@/lib/constants';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export const stageDescription = (key) => STAGE_MAP[key]?.description || '';
@@ -20,7 +20,8 @@ function MaybeTooltip({ text, children }) {
  * Stage pill. `withTooltip` adds a hover/focus tooltip with the stage description
  * (STAGES[].description); default rendering is unchanged.
  */
-export function StageBadge({ stage, className, withTooltip = false }) {
+/** `attempt` > 1 adds the attempt number for a call result recorded again ("Voice Mail 3"). */
+export function StageBadge({ stage, className, withTooltip = false, attempt = 1 }) {
   const style = STAGE_STYLES[stage] || STAGE_STYLES.new;
   const description = withTooltip ? stageDescription(stage) : '';
   return (
@@ -35,7 +36,7 @@ export function StageBadge({ stage, className, withTooltip = false }) {
         )}
       >
         <span className={cn('size-1.5 rounded-full', style.dot)} aria-hidden="true" />
-        {stageLabel(stage)}
+        {stageWithAttempt(stage, attempt)}
       </span>
     </MaybeTooltip>
   );

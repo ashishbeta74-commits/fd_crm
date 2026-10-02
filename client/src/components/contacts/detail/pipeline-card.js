@@ -14,7 +14,7 @@ import { LeadQualitySelect } from '@/components/contacts/lead-quality-select';
 import { TagsInput } from '@/components/contacts/tags-input';
 import { AddFollowUpButton, RemoveFollowUpButton } from '@/components/followups/add-followup-dialog';
 import { RoundSelect } from '@/components/followups/round-select';
-import { categoryLabel, priorityLabel } from '@/lib/constants';
+import { categoryLabel, priorityLabel, stageAttempt } from '@/lib/constants';
 import { useUpdateContact } from '@/hooks/use-contact-mutations';
 import { daysFromToday, formatDate, formatDateTime, formatDateWithDay, formatTime, isoDate, pluralize, relativeDay } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -28,7 +28,7 @@ export function PipelineCard({ contact }) {
     <DetailCard title="Pipeline">
       <DetailRows>
         <DetailRow label="Stage">
-          <StageBadgeTip stage={contact.stage} />
+          <StageBadgeTip stage={contact.stage} attempt={stageAttempt(contact)} />
         </DetailRow>
         <DetailRow label="Type">
           <CategoryField contact={contact} />

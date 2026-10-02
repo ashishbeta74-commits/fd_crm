@@ -67,6 +67,13 @@ const ContactSchema = new Schema(
     // When the contact entered its current stage (set on every stage change). Drives the "In stage since"
     // filter / column and the dashboard's "Prospects by day".
     stageChangedAt: { type: Date, default: null, index: true },
+    // How many times the current call result was recorded in a row ("Voice Mail 3" = third voicemail).
+    // Only valid while `stage` matches: an API instance that predates this field changes the stage without
+    // resetting it, so readers use stageAttempt() rather than the raw count.
+    stageAttempts: {
+      stage: { type: String, default: '' },
+      count: { type: Number, default: 0 },
+    },
     booking: {
       date: { type: Date, default: null },
       time: { type: String, default: '' },
@@ -155,6 +162,14 @@ ContactSchema.index({ 'linkedin.lastTouchAt': -1 });
 ContactSchema.index({ contactL1: 1 });
 
 /** Trim, drop empties and case-insensitive duplicates, keep the first spelling. */
+// Call results that can be recorded again on the same contact (each one is another attempt).
+export const REPEATABLE_STAGES = new Set(['started', 'connected', 'voicemail', 'wrong_number', 'hung_up', 'not_interested']);
+
+/** Attempt number of the contact's current stage (1 unless it was recorded again). */
+export function stageAttempt(c) {
+  return c?.stageAttempts?.stage === c?.stage && c.stageAttempts.count > 1 ? c.stageAttempts.count : 1;
+}
+
 export function normalizeTags(list) {
   const out = [];
   const seen = new Set();
@@ -189,6 +204,8 @@ ContactSchema.pre('save', function preSave(next) {
   this.priorityRank = priorityRank(this.priority);
   stampUser(this);
   if (this.isModified('stage') || (this.isNew && !this.stageChangedAt)) this.stageChangedAt = new Date();
+  // a real stage change starts the attempt count over (repeats bump it in routes/contacts.js)
+  if (this.isModified('stage') && !this.isModified('stageAttempts')) this.stageAttempts = { stage: this.stage, count: 1 };
   // LinkedIn pipeline: derive the stage and the dashboard helpers from what was logged.
   const li = this.linkedin || {};
   const stage = computeLinkedinStage(li);

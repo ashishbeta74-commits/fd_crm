@@ -78,7 +78,7 @@ function ContactCard({ contact: c, selected, onToggle, onStageChange }) {
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
         {/* Log call sits beside the stage here too, matching the table. */}
         <div className="flex items-center gap-1.5">
-          <StageSelect value={c.stage} onChange={(stage) => onStageChange(c, stage)} className="w-40" />
+          <StageSelect value={c.stage} contact={c} onChange={(stage) => onStageChange(c, stage)} className="w-40" />
           <LogCallButton contact={c} compact />
         </div>
         <div className="grid justify-items-end gap-0.5">

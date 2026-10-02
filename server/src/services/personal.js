@@ -32,7 +32,7 @@ const emptyRow = () => ({ calls: 0, worked: 0, followUps: 0, emails: 0, notes: 0
  * Counts per person: distinct contacts called / worked / moved into each stage, and entries per type.
  * Stage changes count by their result: per person and contact only the stage they left it in counts, so a
  * mistake that was corrected (Prospect -> Voice Mail) counts once as Voice Mail, and one that was undone
- * (New -> Prospect -> New) counts for nothing.
+ * (New -> Prospect -> New) counts for nothing. Recording the same result again (another voicemail) does count.
  */
 export async function peopleCounts(from, to, userId = null) {
   const start = dayRange(from).start;
@@ -47,7 +47,15 @@ export async function peopleCounts(from, to, userId = null) {
       ...entriesPipeline(start, end, userId),
       { $match: { 'a.type': 'stage' } },
       { $sort: { 'a.at': 1 } },
-      { $group: { _id: { by: '$a.byId', contact: '$_id' }, from: { $first: '$a.fromStage' }, to: { $last: '$a.toStage' } } },
+      {
+        $group: {
+          _id: { by: '$a.byId', contact: '$_id' },
+          from: { $first: '$a.fromStage' },
+          to: { $last: '$a.toStage' },
+          // "called again" entries (Voice Mail -> Voice Mail): real attempts, not a move that was undone
+          repeats: { $sum: { $cond: [{ $eq: ['$a.fromStage', '$a.toStage'] }, 1, 0] } },
+        },
+      },
     ]),
   ]);
   const people = new Map();
@@ -70,9 +78,9 @@ export async function peopleCounts(from, to, userId = null) {
     if (WORK_TYPES.has(type)) ids.forEach((id) => p.workedSet.add(id));
   }
   for (const r of stageRows) {
-    const { to: stage, from: startedIn } = r;
-    // moved back to where it started: nothing happened
-    if (!stage || stage === startedIn) continue;
+    const { to: stage, from: startedIn, repeats } = r;
+    // moved back to where it started: nothing happened - unless the same result was recorded again
+    if (!stage || (stage === startedIn && !repeats)) continue;
     const p = person(r._id.by);
     const id = String(r._id.contact);
     if (CALL_RESULTS.has(stage)) p.called.add(id);

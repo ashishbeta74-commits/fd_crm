@@ -2,25 +2,83 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, RotateCw } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { STAGES, STAGE_STYLES, stageLabel } from '@/lib/constants';
+import { REPEATABLE_STAGES, STAGES, STAGE_STYLES, stageAttempt, stageLabel, stageWithAttempt } from '@/lib/constants';
 import { formatDateTime, isoDate, weekdayName } from '@/lib/format';
-import { useUpdateContact } from '@/hooks/use-contact-mutations';
+import { useLogActivity, useUpdateContact } from '@/hooks/use-contact-mutations';
 import { cn } from '@/lib/utils';
 
-/** Compact stage dropdown showing the stage colour dot (the selected item renders its own dot). */
-export function StageSelect({ value, onChange, disabled, className, size = 'sm' }) {
+// Select items cannot share the current stage's value, so "called again" gets its own.
+const AGAIN = '__again__';
+
+/** Small attempt number after a stage name ("Voice Mail ³"-style pill); nothing for a first attempt. */
+export function AttemptPill({ attempt, className }) {
+  if (!(attempt > 1)) return null;
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger size={size} className={cn('h-8 gap-1.5', className)} aria-label="Stage">
-        <SelectValue placeholder="Stage" />
+    <span className={cn('rounded-full bg-foreground/10 px-1.5 text-[11px] leading-4 font-semibold tabular-nums', className)} title={`Attempt ${attempt}`} aria-label={`attempt ${attempt}`}>
+      {attempt}
+    </span>
+  );
+}
+
+/**
+ * Record the contact's current call result once more ("Voice Mail" -> "Voice Mail 2"): logs a call with that
+ * result, which the API counts as another attempt and dates today.
+ */
+export function useCallAgain() {
+  const log = useLogActivity();
+  return (contact) => {
+    const next = stageAttempt(contact) + 1;
+    return log
+      .mutateAsync({ id: contact._id, data: { type: 'call', stage: contact.stage } })
+      .then(() => toast.success(`${contact.name || 'Contact'}: ${stageWithAttempt(contact.stage, next)} logged`));
+  };
+}
+
+/**
+ * Compact stage dropdown showing the stage colour dot and, after repeated calls, the attempt number.
+ * Given the `contact`, a call result offers "<result> again" on top, which records another attempt.
+ */
+export function StageSelect({ value, onChange, disabled, className, size = 'sm', contact }) {
+  const callAgain = useCallAgain();
+  const attempt = contact ? stageAttempt(contact) : 1;
+  const canRepeat = Boolean(contact) && REPEATABLE_STAGES.has(value);
+  return (
+    <Select
+      value={value}
+      onValueChange={(v) => {
+        if (v === AGAIN) callAgain(contact).catch(() => {});
+        else onChange(v);
+      }}
+      disabled={disabled}
+    >
+      <SelectTrigger size={size} className={cn('h-8 gap-1.5', className)} aria-label={attempt > 1 ? `Stage: ${stageWithAttempt(value, attempt)}` : 'Stage'}>
+        <SelectValue placeholder="Stage">
+          {value ? (
+            <>
+              <span className={cn('size-2 shrink-0 rounded-full', STAGE_STYLES[value]?.dot)} aria-hidden="true" />
+              <span className="truncate">{stageLabel(value)}</span>
+              <AttemptPill attempt={attempt} />
+            </>
+          ) : undefined}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
+        {canRepeat ? (
+          <>
+            <SelectItem value={AGAIN}>
+              <RotateCw className="size-3.5" aria-hidden="true" />
+              {stageLabel(value)} again
+              <span className="text-xs text-muted-foreground">→ {stageWithAttempt(value, attempt + 1)}</span>
+            </SelectItem>
+            <SelectSeparator />
+          </>
+        ) : null}
         {STAGES.map((s) => (
           <SelectItem key={s.key} value={s.key}>
             <span className={cn('size-2 shrink-0 rounded-full', STAGE_STYLES[s.key].dot)} aria-hidden="true" />

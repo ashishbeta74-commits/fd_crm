@@ -8,14 +8,14 @@ import { STAGE_MAP } from '@/lib/constants';
 const TRIGGER = 'inline-flex rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50';
 
 /** Stage badge that explains the stage (STAGES[].description) in a tooltip. */
-export function StageBadgeTip({ stage, className }) {
+export function StageBadgeTip({ stage, className, attempt = 1 }) {
   const description = STAGE_MAP[stage]?.description;
-  if (!description) return <StageBadge stage={stage} className={className} />;
+  if (!description) return <StageBadge stage={stage} attempt={attempt} className={className} />;
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span tabIndex={0} className={TRIGGER}>
-          <StageBadge stage={stage} className={className} />
+          <StageBadge stage={stage} attempt={attempt} className={className} />
         </span>
       </TooltipTrigger>
       <TooltipContent>{description}</TooltipContent>

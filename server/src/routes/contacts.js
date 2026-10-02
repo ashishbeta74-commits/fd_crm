@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Router } from 'express';
 import { z } from 'zod';
 import ExcelJS from 'exceljs';
-import { Contact, isImportActivity, normalizeTags } from '../models/Contact.js';
+import { Contact, REPEATABLE_STAGES, isImportActivity, normalizeTags, stageAttempt } from '../models/Contact.js';
 import { Reminder } from '../models/Reminder.js';
 import { SheetRating } from '../models/SheetRating.js';
 import { areaCodeRegex } from '../lib/areaCodes.js';
@@ -458,10 +458,20 @@ contactsRouter.post('/:id/activities', async (req, res) => {
   const doc = await loadContact(req.params.id, { light: !needsHistory(input) });
   if (input.type === 'call') {
     doc.lastContactedAt = new Date();
-    doc.activities.push({ type: 'call', message: input.message || (input.stage ? `Call: ${stageLabel(input.stage)}` : 'Call logged') });
     // A call on a New contact moves it to Started unless the caller picked the stage (Connected / Voice Mail / ...).
     const nextStage = input.stage ?? (doc.stage === 'new' ? 'started' : undefined);
-    if (nextStage && nextStage !== doc.stage) {
+    // The same call result again (another voicemail) is another attempt: "Voice Mail 2", "Voice Mail 3", ...
+    // It gets its own stage entry and a fresh stage date, so "Voice mails today", the daily report and the
+    // personal dashboards count it like a move.
+    const again = Boolean(input.stage) && input.stage === doc.stage && REPEATABLE_STAGES.has(input.stage);
+    const attempt = again ? stageAttempt(doc) + 1 : 1;
+    const result = input.stage ? `${stageLabel(input.stage)}${attempt > 1 ? ` ${attempt}` : ''}` : '';
+    doc.activities.push({ type: 'call', message: input.message || (result ? `Call: ${result}` : 'Call logged') });
+    if (again) {
+      doc.activities.push({ type: 'stage', fromStage: doc.stage, toStage: doc.stage, message: `${result} (called again)` });
+      doc.stageAttempts = { stage: doc.stage, count: attempt };
+      doc.stageChangedAt = new Date();
+    } else if (nextStage && nextStage !== doc.stage) {
       doc.activities.push({ type: 'stage', fromStage: doc.stage, toStage: nextStage, message: `Moved from ${stageLabel(doc.stage)} to ${stageLabel(nextStage)}` });
       doc.stage = nextStage;
     }
@@ -506,6 +516,12 @@ function undoActivity(doc, act) {
     return;
   }
   if (act.type === 'followup') doc.followUpCount = Math.max(0, (doc.followUpCount || 0) - 1);
+  // deleting an "again" entry takes that attempt back, and the stage date goes back to the previous one
+  if (act.type === 'stage' && act.fromStage === act.toStage && act.toStage === doc.stage && stageAttempt(doc) > 1) {
+    doc.stageAttempts = { stage: doc.stage, count: stageAttempt(doc) - 1 };
+    const prev = doc.activities.filter((a) => a !== act && a.type === 'stage' && a.toStage === doc.stage).sort((a, b) => new Date(b.at) - new Date(a.at))[0];
+    if (prev) doc.stageChangedAt = prev.at;
+  }
   if (act.type === 'call' || act.type === 'email' || act.type === 'followup') doc.lastContactedAt = lastLoggedTouch(doc, act);
 }
 
