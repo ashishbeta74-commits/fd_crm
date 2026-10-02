@@ -32,7 +32,8 @@ const emptyRow = () => ({ calls: 0, worked: 0, followUps: 0, emails: 0, notes: 0
  * Counts per person: distinct contacts called / worked / moved into each stage, and entries per type.
  * Stage changes count by their result: per person and contact only the stage they left it in counts, so a
  * mistake that was corrected (Prospect -> Voice Mail) counts once as Voice Mail, and one that was undone
- * (New -> Prospect -> New) counts for nothing. Recording the same result again (another voicemail) does count.
+ * (New -> Prospect -> New) counts for nothing. Recording the same result again (another voicemail, also via a
+ * reset to New: Voice Mail -> New -> Voice Mail) does count.
  */
 export async function peopleCounts(from, to, userId = null) {
   const start = dayRange(from).start;
@@ -52,6 +53,7 @@ export async function peopleCounts(from, to, userId = null) {
           _id: { by: '$a.byId', contact: '$_id' },
           from: { $first: '$a.fromStage' },
           to: { $last: '$a.toStage' },
+          lastFrom: { $last: '$a.fromStage' },
           // "called again" entries (Voice Mail -> Voice Mail): real attempts, not a move that was undone
           repeats: { $sum: { $cond: [{ $eq: ['$a.fromStage', '$a.toStage'] }, 1, 0] } },
         },
@@ -78,9 +80,11 @@ export async function peopleCounts(from, to, userId = null) {
     if (WORK_TYPES.has(type)) ids.forEach((id) => p.workedSet.add(id));
   }
   for (const r of stageRows) {
-    const { to: stage, from: startedIn, repeats } = r;
-    // moved back to where it started: nothing happened - unless the same result was recorded again
-    if (!stage || (stage === startedIn && !repeats)) continue;
+    const { to: stage, from: startedIn, repeats, lastFrom } = r;
+    // Moved back to where it started: nothing happened (Prospect by mistake, then back). Except when the same
+    // result was recorded again: with "… again", or the older way of resetting to New first and picking the
+    // result once more (Voice Mail -> New -> Voice Mail), where the last move comes from New.
+    if (!stage || (stage === startedIn && !repeats && lastFrom !== 'new')) continue;
     const p = person(r._id.by);
     const id = String(r._id.contact);
     if (CALL_RESULTS.has(stage)) p.called.add(id);
