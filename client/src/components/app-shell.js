@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, Menu, PanelLeftClose, PanelLeftOpen, Upload, UserRound, Users, X } from 'lucide-react';
+import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, MailCheck, Menu, PanelLeftClose, PanelLeftOpen, Upload, UserRound, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -22,7 +22,9 @@ const NAV = [
   { href: '/me', label: 'My dashboard', icon: UserRound },
   { href: '/contacts', label: 'Contacts', icon: Users, children: SidebarViews },
   { href: '/follow-ups', label: 'Follow-ups', icon: CalendarClock },
-  { href: '/linkedin', label: 'LinkedIn CRM', icon: Linkedin, accent: true },
+  // The other CRMs get their own icon colour so they read as separate workspaces: LinkedIn's blue, a mail green.
+  { href: '/linkedin', label: 'LinkedIn CRM', icon: Linkedin, accent: 'text-[#0a66c2] dark:text-sky-400' },
+  { href: '/email-evaluation', label: 'Email Evaluation', icon: MailCheck, accent: 'text-emerald-600 dark:text-emerald-400' },
   { href: '/duplicates', label: 'Duplicates', icon: Copy },
   { href: '/templates', label: 'Email templates', icon: Mail },
   { href: '/scripts', label: 'Phone scripts & Q&A', icon: BookOpen },
@@ -85,13 +87,13 @@ function NavLinks({ onNavigate, collapsed = false }) {
               'motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-2 motion-safe:fill-mode-backwards motion-safe:duration-300 motion-safe:[animation-delay:calc(var(--i)*35ms)]',
             )}
           >
-            {/* The second CRM gets LinkedIn's blue so it stands out as a separate workspace; the active page gets the brand gold. */}
+            {/* An accented CRM keeps its own colour; every other active page gets the brand gold. */}
             <Icon
               className={cn(
                 'size-4 shrink-0 transition-transform duration-300',
                 EASE,
                 'motion-safe:group-hover/nav:scale-110',
-                accent && 'text-[#0a66c2] dark:text-sky-400',
+                accent,
                 active && !accent && 'text-brand-gold-deep dark:text-brand-gold',
               )}
               aria-hidden="true"

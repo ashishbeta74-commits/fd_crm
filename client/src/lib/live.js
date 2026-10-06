@@ -33,6 +33,9 @@ const KEYS_BY_COLLECTION = {
   emailtemplates: [['templates']],
   scripts: [['scripts']],
   savedviews: [['views']],
+  emailevaluations: [['email-evaluation']],
+  // a sheet sync records its outcome in the settings
+  settings: [['email-evaluation', 'meta']],
 };
 
 function refetchFor(qc, collections) {

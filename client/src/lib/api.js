@@ -256,6 +256,18 @@ export const api = {
     exportUrl: (params) => `${BASE}/linkedin/export${toQuery(params)}`,
   },
 
+  // Email Evaluation CRM (rows of the team's "EMAIL EVALUATION" sheet)
+  emailEvaluation: {
+    meta: () => request('/email-evaluation/meta'),
+    list: (params) => request(`/email-evaluation${toQuery(params)}`),
+    create: (body) => request('/email-evaluation', { method: 'POST', body }),
+    update: (id, body) => request(`/email-evaluation/${id}`, { method: 'PATCH', body }),
+    remove: (id) => request(`/email-evaluation/${id}`, { method: 'DELETE' }),
+    sync: () => request('/email-evaluation/sync', { method: 'POST', body: {} }),
+    setSheet: (body) => request('/email-evaluation/sheet', { method: 'PUT', body }),
+    exportUrl: (params) => `${BASE}/email-evaluation/export${toQuery(params)}`,
+  },
+
   duplicates: {
     find: (params) => request(`/duplicates${toQuery(params)}`),
     merge: (body) => request('/duplicates/merge', { method: 'POST', body }),
@@ -296,4 +308,6 @@ export const qk = {
   linkedinMeta: ['linkedin', 'meta'],
   linkedinList: (params) => ['linkedin', 'list', params || {}],
   linkedinStats: (params) => ['linkedin', 'stats', params || {}],
+  emailEvaluationMeta: ['email-evaluation', 'meta'],
+  emailEvaluationList: (params) => ['email-evaluation', 'list', params || {}],
 };

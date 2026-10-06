@@ -18,7 +18,7 @@ try {
 
 const routes = process.argv.slice(2).length
   ? process.argv.slice(2)
-  : ['/', '/contacts', '/contacts/000000000000000000000000', '/follow-ups', '/linkedin', '/duplicates', '/templates', '/import'];
+  : ['/', '/contacts', '/contacts/000000000000000000000000', '/follow-ups', '/linkedin', '/email-evaluation', '/duplicates', '/templates', '/import'];
 const ERROR_MARKERS = [/Build Error/i, /Failed to compile/i, /Module not found/i, /Unhandled Runtime Error/i, /Internal Server Error/i, /__next_error__/, /"err":\{"name"/];
 
 let failed = 0;

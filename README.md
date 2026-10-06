@@ -130,6 +130,23 @@ priority, action flag and list; bulk actions log a step, set a persona or park/c
 workbook's Data-tab layout. The **Playbook** tab holds the 12 steps with what to do, what to say (copy button), what to log and what
 to watch out for, plus the daily rhythm and guardrails.
 
+### Email Evaluation CRM (the EMAIL EVALUATION sheet)
+
+**Email Evaluation** (sidebar, green mail icon) is a third workspace with its own rows, not contacts: every client the team
+evaluated by email, read from the `EMAIL EVALUATION - ABDUL` Google Sheet. Each row carries the sheet's columns - Date, Date
+evaluated for, Client name, Company name, Status, Primary email, Secondary email, Phone no, Notes, Follow up and Date of follow up
+(the sheet's second STATUS column is left out on purpose) - plus the tab it came from. Every tab with a CLIENT NAME or PRIMARY EMAIL
+column is read (HARRY, INFO, Reservations@, Advisors…); columns are matched by name, so the tabs may order them differently.
+
+The sheet stays the team's working copy: *Sync now* (and the automatic check every `SHEET_SYNC_MINUTES`, when set) re-reads it, adds
+new rows, updates cells that changed in the sheet and drops rows that were deleted there. Rows are matched by email (or name) within a
+tab, so sorting or inserting rows in the sheet does not duplicate them. Edits made in the CRM are kept until the same cell changes in
+the sheet; a row edited here and then deleted from the sheet is kept and flagged "not in sheet". Status, notes, follow up and date of
+follow up edit in place (click the cell); the pencil edits every field; *Add row* creates a row that lives in the CRM only. Search
+covers name, company, emails, phone, notes and status; filters cover tab, year evaluated for, follow-up written or not and a date
+range; *Export* downloads the view as .xlsx in the sheet's column layout. The first row is empty on a fresh database until the API's
+first start-up sync (20 s after start) or a *Sync now*. An admin can point the page at another sheet (the gear next to *Add row*).
+
 ### Sign-in and team access
 
 Only the ten team accounts can use the app (FD-001 Charan, super admin; FD-002 Haroon; FD-003 Abdul; FD-004 Munish; FD-005 Jasleen;
