@@ -62,6 +62,82 @@ export const WORKSPACES = [
   },
 ];
 
+// ---- Vehicle violations: the "Master - 14 July 2025 Onwards" tab (the per-vehicle tabs are older, hand-laid-out copies) ----
+WORKSPACES.push({
+  key: 'violations',
+  label: 'Vehicle Violations',
+  description: 'Every ticket from the violations sheet: which vehicle and plate, what for, when, what it cost, who paid, and whether it was deducted from payroll.',
+  rowLabel: 'violation',
+  sheet: {
+    url: 'https://docs.google.com/spreadsheets/d/1D03c-zSXESpP3nAFTJNhKa1aWzlyz94LVhjoMVRqfEc/edit?gid=755357403#gid=755357403',
+    tabs: [],
+  },
+  keyField: 'violationNo',
+  dateField: 'issueDate',
+  statusField: 'status',
+  valueField: 'amountDue',
+  defaultSort: { field: 'issueDate', dir: 'desc' },
+  fields: [
+    { key: 'violationNo', label: 'Violation #', headers: ['violation', 'violationno', 'violationnumber', 'ticket', 'ticketno', 'summons'], type: 'text', search: true, sort: true, width: 'w-36' },
+    { key: 'vehicle', label: 'Vehicle', headers: ['vehiclename', 'vehicle'], type: 'text', filter: true, search: true, sort: true, inline: true, width: 'w-36' },
+    { key: 'plate', label: 'Plate', headers: ['platedetails', 'plate', 'platenumber', 'plateno'], type: 'text', filter: true, search: true, inline: true, width: 'w-32' },
+    { key: 'description', label: 'Description', headers: ['description', 'violationdescription'], type: 'text', search: true, inline: true, width: 'w-64' },
+    { key: 'issueDate', label: 'Issue date', headers: ['issuedate', 'date', 'dateofissue'], type: 'date', sort: true, inline: true },
+    { key: 'amountDue', label: 'Amount due', headers: ['totalamountdue', 'amountdue', 'amount', 'fine'], type: 'number', sort: true, inline: true, width: 'w-28' },
+    { key: 'paidAmount', label: 'Paid', headers: ['paymentamount', 'paid', 'amountpaid'], type: 'number', sort: true, inline: true, width: 'w-24' },
+    { key: 'paidOn', label: 'Paid on', headers: ['paidon', 'paymentdate', 'datepaid'], type: 'date', inline: true },
+    { key: 'paidBy', label: 'Paid by', headers: ['paidby'], type: 'enum', filter: true, inline: true, options: ['Famous Drive', 'Charan', 'Driver'] },
+    { key: 'status', label: 'Status', headers: ['status'], type: 'enum', filter: true, sort: true, inline: true, options: ['Paid', 'Unpaid', 'Disputed', 'NOT TO BE PAID'] },
+    { key: 'driver', label: 'Driver', headers: ['driver', 'drivername', 'chauffeur'], type: 'text', filter: true, search: true, inline: true, width: 'w-32' },
+    { key: 'deducted', label: 'Deducted from payroll', headers: ['deductedfrompayroll', 'deducted', 'payroll'], type: 'enum', filter: true, inline: true, options: ['Yes', 'No', 'Not yet', 'To be deducted', 'Not to be deducted'] },
+    { key: 'notes', label: 'Notes', headers: ['notes', 'remarks', 'comments'], type: 'long', search: true, inline: true, width: 'w-72' },
+    { key: 'location', label: 'Location', headers: ['location', 'place'], type: 'text', search: true, inline: true, width: 'w-64' },
+  ],
+});
+
+// ---- Fleet register: the "Vehicle" tab (plates, documents, expiries, EZ Pass, service dates) ----
+WORKSPACES.push({
+  key: 'vehicles',
+  label: 'Vehicles',
+  description: "The fleet register: each vehicle's plate and VIN, registration / insurance / inspection expiries, EZ Pass, battery and oil-change history.",
+  rowLabel: 'vehicle',
+  sheet: {
+    url: 'https://docs.google.com/spreadsheets/d/17Gbl7kLCW9XGGfTNNsso1eLfeCP8pCAWDfTZJ7zjkdk/edit?gid=0#gid=0',
+    tabs: [],
+  },
+  keyField: 'plate',
+  // a line without a vehicle name (the sheet's "All TLC vehicles…" footnote in the plate column) is not a vehicle
+  requires: ['vehicle'],
+  dateField: '',
+  statusField: 'plateState',
+  valueField: '',
+  defaultSort: { field: 'vehicle', dir: 'asc' },
+  fields: [
+    { key: 'vehicle', label: 'Vehicle', headers: ['vehicle', 'vehiclename', 'name'], type: 'text', search: true, sort: true, inline: true, width: 'w-44' },
+    { key: 'plate', label: 'Plate', headers: ['platenumber', 'plate', 'plateno', 'platedetails'], type: 'text', search: true, sort: true, inline: true, width: 'w-32' },
+    { key: 'plateState', label: 'Plate state', headers: ['platestate', 'state'], type: 'enum', filter: true, inline: true, options: ['NY', 'NJ', 'PA', 'CT'] },
+    { key: 'vin', label: 'VIN', headers: ['vinnumber', 'vin'], type: 'text', search: true, inline: true, width: 'w-48' },
+    { key: 'registrationExp', label: 'Registration exp.', headers: ['registrationexp', 'resistrationexp', 'registrationexpiry', 'registration'], type: 'date', sort: true, inline: true },
+    { key: 'insuranceExp', label: 'Insurance exp.', headers: ['insuranceexp', 'insuranceexpiry', 'insurance'], type: 'date', sort: true, inline: true },
+    { key: 'inspectionDone', label: 'Inspection done', headers: ['stateinspectiondone', 'inspectiondone'], type: 'date', inline: true },
+    { key: 'inspectionExp', label: 'Inspection exp.', headers: ['stateinspectionexp', 'inspectionexp', 'stateinspection'], type: 'date', sort: true, inline: true },
+    { key: 'diamondStickerExp', label: 'Diamond sticker exp.', headers: ['diamondstickerexp', 'diamondsticker'], type: 'date', inline: true },
+    { key: 'ezPass', label: 'EZ Pass', headers: ['ezpassno', 'ezpass'], type: 'text', inline: true, width: 'w-40' },
+    { key: 'photos', label: 'Photos', headers: ['photolinks', 'photos'], type: 'text', inline: true, width: 'w-44' },
+    { key: 'documents', label: 'Documents', headers: ['vehicledocuments', 'documents'], type: 'text', inline: true, width: 'w-48' },
+    { key: 'battery1', label: 'Battery changed', headers: ['batterychanged', 'battery'], type: 'date', inline: true },
+    { key: 'battery2', label: 'Battery changed (2)', headers: ['batterychanged2'], type: 'date', inline: true },
+    { key: 'oilChange1', label: 'Oil change', headers: ['dateofoilchange', 'oilchange'], type: 'date', inline: true },
+    { key: 'miles1', label: 'Miles', headers: ['miles', 'mileage'], type: 'number', inline: true, width: 'w-24' },
+    { key: 'oilChange2', label: 'Oil change (2)', headers: ['dateofoilchange2', 'oilchange2'], type: 'date', inline: true },
+    { key: 'miles2', label: 'Miles (2)', headers: ['miles2'], type: 'number', inline: true, width: 'w-24' },
+    { key: 'oilChange3', label: 'Oil change (3)', headers: ['dateofoilchange3', 'oilchange3'], type: 'date', inline: true },
+    { key: 'miles3', label: 'Miles (3)', headers: ['miles3'], type: 'number', inline: true, width: 'w-24' },
+    // the sheet keeps free-text service notes in an unnamed column after the mileage
+    { key: 'notes', label: 'Notes', headers: ['notes', 'remarks', 'servicenotes', 'columnu'], type: 'long', search: true, inline: true, width: 'w-80' },
+  ],
+});
+
 export const WORKSPACE_MAP = Object.fromEntries(WORKSPACES.map((w) => [w.key, w]));
 export const getWorkspace = (key) => WORKSPACE_MAP[key] || null;
 

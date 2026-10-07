@@ -155,6 +155,12 @@ source, which mailbox it came in on, client contact and name, city, service type
 with, the quote, status, remarks, follow-up instructions, ageing, follow-up count and dates 1-6, business value. The other tabs of
 that workbook (the pivot dashboard, the incident log, the lead-source copy) are not read.
 
+Two more workspaces follow the same pattern: **Vehicle Violations** (`/violations`, the violations sheet's "Master - 14 July 2025
+Onwards" tab: violation number, vehicle, plate, description, issue date, amount due and paid, paid by, status, driver, payroll
+deduction, notes, location; tiles count the statuses and sum the amounts due) and **Vehicles** (`/vehicles`, the fleet register's
+"Vehicle" tab: plate and state, VIN, registration / insurance / inspection / diamond-sticker expiries, EZ Pass, photo and document
+names, battery and oil-change dates with mileage, service notes). Expiry dates show red once passed and amber within 30 days.
+
 Each workspace is one entry in `server/src/workspaces.js` (fields, the sheet headers that feed them, the key column, which fields
 are filters / editable in place / searched / sortable, the status and value fields for the tiles) plus a sidebar link in
 `client/src/lib/workspaces.js` and a one-line page under `client/src/app/<slug>/page.js`. Everything else is shared: the sync (same

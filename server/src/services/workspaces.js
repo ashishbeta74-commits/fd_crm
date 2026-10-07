@@ -14,10 +14,11 @@ import { valueToText } from './excel.js';
 import { loadSheetByLink, parseSheetUrl, sheetUrl } from './sheetLink.js';
 
 const settingKey = (ws) => `workspace:${ws.key}`;
-// "DATE ( DOUBLE CLICK )" -> "date"; "CLIENT EMAIL ID / Phone No" -> "clientemailidphoneno"
+// "DATE ( DOUBLE CLICK )" -> "date"; "CLIENT EMAIL ID / Phone No" -> "clientemailidphoneno";
+// a repeated header keeps its number: "Date of Oil Change (2)" -> "dateofoilchange2"
 export const normHeader = (h) =>
   String(h || '')
-    .replace(/ \(\d+\)$/, '') // the parser's suffix for a repeated header
+    .replace(/ \((\d+)\)$/, '$1')
     .replace(/\([^)]*\)/g, '')
     .replace(/\?/g, '')
     .toLowerCase()
@@ -81,8 +82,9 @@ export function typedValues(ws, text, only = null) {
   return out;
 }
 
-// A row with no id and nothing but dates in it (a half-filled line at the bottom of a tab) is not a row.
-const isBlank = (ws, text) => !(ws.keyField && text[ws.keyField]) && ws.fields.every((f) => f.type === 'date' || !text[f.key]);
+// A row with no id and nothing but dates in it (a half-filled line at the bottom of a tab) is not a row;
+// neither is one missing a field the workspace `requires` (a footnote typed into one column).
+const isBlank = (ws, text) => (ws.requires || []).some((k) => !text[k]) || (!(ws.keyField && text[ws.keyField]) && ws.fields.every((f) => f.type === 'date' || !text[f.key]));
 
 // ---------- settings ----------
 

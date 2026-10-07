@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown, MoreHorizontal, Pencil, Trash2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { formatDate } from '@/lib/format';
+import { daysFromToday, formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
@@ -33,11 +33,29 @@ const TONES = [
 ];
 export const toneFor = (v) => TONES.find(([rx]) => rx.test(String(v || '')))?.[1] || 'border-border bg-muted/60 text-foreground';
 
+// Expiry dates (registration, insurance, inspection…) are coloured by how close they are.
+const isExpiry = (field) => /exp/i.test(field.key) || /exp/i.test(field.label);
+function expiryClass(d) {
+  const days = daysFromToday(d);
+  if (days == null) return '';
+  if (days < 0) return 'font-medium text-destructive';
+  if (days <= 30) return 'font-medium text-amber-700 dark:text-amber-400';
+  return '';
+}
+
 /** A cell's display: dates formatted, emails / phones linked, everything else as text. */
 function Display({ field, value }) {
   if (value == null || value === '') return <Dash />;
   const s = String(value);
-  if (field.type === 'date' && ISO_DATE.test(s)) return <span className="whitespace-nowrap" suppressHydrationWarning>{formatDate(s)}</span>;
+  if (field.type === 'date' && ISO_DATE.test(s)) {
+    const cls = isExpiry(field) ? expiryClass(s) : '';
+    const days = cls ? daysFromToday(s) : null;
+    return (
+      <span className={cn('whitespace-nowrap', cls)} suppressHydrationWarning title={days == null ? undefined : days < 0 ? `Expired ${-days} day${days === -1 ? '' : 's'} ago` : days === 0 ? 'Expires today' : `Expires in ${days} day${days === 1 ? '' : 's'}`}>
+        {formatDate(s)}
+      </span>
+    );
+  }
   if (field.type === 'number' && typeof value === 'number') return <span className="tabular-nums">{value.toLocaleString('en-US')}</span>;
   if (field.type === 'enum') return <span className={cn('inline-block max-w-full truncate rounded-full border px-2 py-0.5 text-xs font-medium', toneFor(s))}>{s}</span>;
   const email = s.match(/[^\s<>;,]+@[^\s<>;,]+/)?.[0];
