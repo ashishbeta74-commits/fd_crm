@@ -240,6 +240,8 @@ export function WorkspaceView({ workspace: key, href }) {
   const neverSynced = meta.data && !meta.data.sheet?.lastSyncedAt;
   const rowLabel = ws?.rowLabel || 'row';
   const showTab = (meta.data?.tabs || []).length > 1;
+  // the sheet's tabs, for filing a row added here into one of them
+  const sheetTabs = meta.data?.sheet?.lastTabs?.length ? meta.data.sheet.lastTabs : (meta.data?.tabs || []).map((t) => t.tab).filter(Boolean);
 
   let content;
   if (isError || meta.isError) {
@@ -284,10 +286,10 @@ export function WorkspaceView({ workspace: key, href }) {
     content = (
       <div className={cn('grid grid-cols-1 gap-4', ENTER)}>
         <div className="md:hidden">
-          <WorkspaceCards workspace={ws} items={items} dimmed={isPlaceholderData} filterValues={meta.data.filters} />
+          <WorkspaceCards workspace={ws} items={items} dimmed={isPlaceholderData} filterValues={meta.data.filters} tabs={sheetTabs} />
         </div>
         <div className="hidden md:block">
-          <WorkspaceTable workspace={ws} items={items} dimmed={isPlaceholderData} sort={sort} dir={dir} onSort={onSort} filterValues={meta.data.filters} showTab={showTab} />
+          <WorkspaceTable workspace={ws} items={items} dimmed={isPlaceholderData} sort={sort} dir={dir} onSort={onSort} filterValues={meta.data.filters} showTab={showTab} tabs={sheetTabs} />
         </div>
         <Pagination rowLabel={rowLabel} page={data.page} pages={data.pages} limit={data.limit} total={total} count={items.length} onPage={(page) => setParams({ page })} onLimit={(limit) => setParams({ limit })} />
       </div>

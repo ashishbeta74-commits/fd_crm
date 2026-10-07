@@ -99,7 +99,7 @@ function EditableCell({ item, field, className, multiline = false }) {
 }
 
 /** Edit all fields / delete, in a small menu at the end of the row. */
-function RowActions({ item, compact = false }) {
+function RowActions({ item, compact = false, tabs = [] }) {
   const [dialog, setDialog] = useState(null); // 'edit' | 'delete'
   const remove = useRemoveRow();
   return (
@@ -132,7 +132,7 @@ function RowActions({ item, compact = false }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {dialog === 'edit' ? <EmailEvaluationDialog key={`${item._id}-${item.updatedAt}`} item={item} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
+      {dialog === 'edit' ? <EmailEvaluationDialog key={`${item._id}-${item.updatedAt}`} item={item} tabs={tabs} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
       <ConfirmDialog
         open={dialog === 'delete'}
         onOpenChange={(v) => !v && setDialog(null)}
@@ -181,7 +181,7 @@ function SortableHead({ label, column, sort, dir, onSort, className }) {
   );
 }
 
-function Row({ item: c }) {
+function Row({ item: c, tabs }) {
   return (
     <TableRow className="group/row">
       <TableCell className={cn(STICKY_CELL, 'w-56 min-w-56 max-w-56')}>
@@ -230,7 +230,7 @@ function Row({ item: c }) {
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">{c.tab || 'CRM'}</TableCell>
       <TableCell className="text-right">
-        <RowActions item={c} />
+        <RowActions item={c} tabs={tabs} />
       </TableCell>
     </TableRow>
   );
@@ -254,7 +254,7 @@ function SkeletonRow() {
   );
 }
 
-export function EmailEvaluationTable({ items = [], loading = false, dimmed = false, sort, dir, onSort }) {
+export function EmailEvaluationTable({ items = [], loading = false, dimmed = false, sort, dir, onSort, tabs = [] }) {
   // The client name goes first (it is the frozen column); the other columns keep the sheet's order.
   const name = COLUMNS.find((c) => c.key === 'clientName');
   const rest = COLUMNS.filter((c) => c.key !== 'clientName');
@@ -268,14 +268,14 @@ export function EmailEvaluationTable({ items = [], loading = false, dimmed = fal
             <TableHead className="w-24 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>{loading ? Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />) : items.map((c) => <Row key={c._id} item={c} />)}</TableBody>
+        <TableBody>{loading ? Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} />) : items.map((c) => <Row key={c._id} item={c} tabs={tabs} />)}</TableBody>
       </Table>
     </div>
   );
 }
 
 /** Phone layout: one card per row. */
-export function EmailEvaluationCards({ items = [], loading = false, dimmed = false }) {
+export function EmailEvaluationCards({ items = [], loading = false, dimmed = false, tabs = [] }) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-3" aria-busy>
@@ -294,7 +294,7 @@ export function EmailEvaluationCards({ items = [], loading = false, dimmed = fal
               <p className="truncate text-base font-semibold">{c.clientName || '(no name)'}</p>
               <p className="truncate text-sm text-muted-foreground">{[c.company, c.evaluatedFor && `for ${c.evaluatedFor}`, c.tab].filter(Boolean).join(' · ')}</p>
             </div>
-            <RowActions item={c} compact />
+            <RowActions item={c} compact tabs={tabs} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             <span suppressHydrationWarning>{c.date ? formatDate(c.date) : c.dateLabel || 'no date'}</span>

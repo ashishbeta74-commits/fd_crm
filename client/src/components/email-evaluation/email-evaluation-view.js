@@ -224,6 +224,8 @@ export function EmailEvaluationView() {
   const total = data?.total ?? 0;
   const onSort = (column) => setParams({ sort: column, dir: params.sort === column ? (params.dir === 'asc' ? 'desc' : 'asc') : SORTS[column] });
   const neverSynced = meta.data && !meta.data.sheet?.lastSyncedAt;
+  // the sheet's tabs, for filing a row added here into one of them
+  const sheetTabs = meta.data?.sheet?.lastTabs?.length ? meta.data.sheet.lastTabs : (meta.data?.tabs || []).map((t) => t.tab).filter(Boolean);
 
   let content;
   if (isError) {
@@ -269,10 +271,10 @@ export function EmailEvaluationView() {
     content = (
       <div className={cn('grid grid-cols-1 gap-4', ENTER)}>
         <div className="md:hidden">
-          <EmailEvaluationCards items={items} dimmed={isPlaceholderData} />
+          <EmailEvaluationCards items={items} dimmed={isPlaceholderData} tabs={sheetTabs} />
         </div>
         <div className="hidden md:block">
-          <EmailEvaluationTable items={items} dimmed={isPlaceholderData} sort={params.sort} dir={params.dir} onSort={onSort} />
+          <EmailEvaluationTable items={items} dimmed={isPlaceholderData} sort={params.sort} dir={params.dir} onSort={onSort} tabs={sheetTabs} />
         </div>
         <Pagination page={data.page} pages={data.pages} limit={data.limit} total={total} count={items.length} onPage={(page) => setParams({ page })} onLimit={(limit) => setParams({ limit })} />
       </div>

@@ -127,7 +127,7 @@ function EditableCell({ workspace: ws, item, field, options }) {
   );
 }
 
-function RowActions({ workspace: ws, item, options, compact = false }) {
+function RowActions({ workspace: ws, item, options, compact = false, tabs = [] }) {
   const [dialog, setDialog] = useState(null); // 'edit' | 'delete'
   const remove = useRemoveRow(ws.key);
   return (
@@ -160,7 +160,7 @@ function RowActions({ workspace: ws, item, options, compact = false }) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {dialog === 'edit' ? <WorkspaceDialog key={`${item._id}-${item.updatedAt}`} workspace={ws} item={item} options={options} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
+      {dialog === 'edit' ? <WorkspaceDialog key={`${item._id}-${item.updatedAt}`} workspace={ws} item={item} options={options} tabs={tabs} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
       <ConfirmDialog
         open={dialog === 'delete'}
         onOpenChange={(v) => !v && setDialog(null)}
@@ -221,7 +221,7 @@ function Cell({ workspace: ws, field, item, options }) {
   return <Display field={field} value={item.values?.[field.key]} />;
 }
 
-export function WorkspaceTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, filterValues = {}, showTab = false }) {
+export function WorkspaceTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, filterValues = {}, showTab = false, tabs = [] }) {
   const [first, ...rest] = columnsOf(ws);
   const widthOf = (f) => f.width || (f.type === 'date' ? 'w-32' : f.type === 'enum' ? 'w-40' : f.type === 'long' ? 'w-80' : 'w-44');
   return (
@@ -272,7 +272,7 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
                   ))}
                   {showTab ? <TableCell className="text-sm text-muted-foreground">{item.tab || 'CRM'}</TableCell> : null}
                   <TableCell className="text-right align-top">
-                    <RowActions workspace={ws} item={item} options={filterValues} />
+                    <RowActions workspace={ws} item={item} options={filterValues} tabs={tabs} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -283,7 +283,7 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
 }
 
 /** Phone layout: one card per row with the first few fields and the status-like ones. */
-export function WorkspaceCards({ workspace: ws, items = [], loading = false, dimmed = false, filterValues = {} }) {
+export function WorkspaceCards({ workspace: ws, items = [], loading = false, dimmed = false, filterValues = {}, tabs = [] }) {
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-3" aria-busy>
@@ -308,7 +308,7 @@ export function WorkspaceCards({ workspace: ws, items = [], loading = false, dim
                 <MissingBadge item={item} />
               </p>
             </div>
-            <RowActions workspace={ws} item={item} options={filterValues} compact />
+            <RowActions workspace={ws} item={item} options={filterValues} compact tabs={tabs} />
           </div>
           <dl className="grid grid-cols-[8rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-sm">
             {body.map((f) => {

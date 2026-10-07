@@ -23,7 +23,9 @@ export function WorkspaceDialog({ workspace: ws, open, onOpenChange, item, optio
   const update = useUpdateRow(ws.key);
   const editing = Boolean(item?._id);
   const [form, setForm] = useState(() => Object.fromEntries(ws.fields.map((f) => [f.key, valueText(item?.values?.[f.key])])));
-  const [tab, setTab] = useState(tabs[0] || '');
+  // A row that is not in the sheet yet (added here) can still be moved into a tab; a synced row stays where the sheet has it.
+  const canPickTab = tabs.length > 0 && (!editing || item.source !== 'sheet');
+  const [tab, setTab] = useState(editing ? item?.tab || '' : tabs[0] || '');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const pending = create.isPending || update.isPending;
   const identifying = [ws.keyField, ...ws.fields.filter((f) => f.search).map((f) => f.key)].filter(Boolean);
@@ -37,8 +39,12 @@ export function WorkspaceDialog({ workspace: ws, open, onOpenChange, item, optio
     const data = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, String(v ?? '').trim()]));
     try {
       if (editing) {
-        await update.mutateAsync({ id: item._id, data });
-        toast.success('Saved');
+        const moving = canPickTab && tab && tab !== item.tab;
+        const doc = await update.mutateAsync({ id: item._id, data: moving ? { ...data, tab } : data });
+        const w = doc.sheetWrite;
+        if (w?.ok) toast.success(`Saved and written to the "${w.tab}" tab of the sheet (row ${w.rowNumber})`);
+        else if (w) toast.warning(`Saved under "${w.tab}", but not written to the sheet`, { description: w.error, duration: 8000 });
+        else toast.success('Saved');
       } else {
         const doc = await create.mutateAsync(tab ? { ...data, tab } : data);
         const w = doc.sheetWrite;
@@ -64,14 +70,15 @@ export function WorkspaceDialog({ workspace: ws, open, onOpenChange, item, optio
             <DialogTitle>{editing ? `Edit ${title}` : `New ${ws.rowLabel}`}</DialogTitle>
             <DialogDescription>{editing ? (item.tab ? `From the "${item.tab}" tab of the sheet. A change here stays until the same cell changes in the sheet.` : 'Added in the CRM (not in the sheet).') : 'Rows added here live in the CRM only; the sheet is not changed.'}</DialogDescription>
           </DialogHeader>
-          {!editing && tabs.length ? (
+          {canPickTab ? (
             <div className="grid gap-1.5 rounded-md border bg-muted/40 p-3">
-              <Label htmlFor={`ws-${ws.key}-tab`}>Add to sheet tab</Label>
-              <Select value={tab} onValueChange={setTab}>
+              <Label htmlFor={`ws-${ws.key}-tab`}>{editing ? 'Move to sheet tab' : 'Add to sheet tab'}</Label>
+              <Select value={tab || NONE} onValueChange={(v) => setTab(v === NONE ? '' : v)}>
                 <SelectTrigger id={`ws-${ws.key}-tab`} className="w-full bg-background">
                   <SelectValue placeholder="Choose a tab" />
                 </SelectTrigger>
                 <SelectContent>
+                  {editing ? <SelectItem value={NONE}>Keep in the CRM only</SelectItem> : null}
                   {tabs.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -79,7 +86,10 @@ export function WorkspaceDialog({ workspace: ws, open, onOpenChange, item, optio
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">The {ws.rowLabel} is filed under this tab here and appended to it in the Google Sheet (when the API can write to the sheet).{ws.keyField && ws.fields.find((f) => f.key === ws.keyField) ? ` Leave the ${ws.fields.find((f) => f.key === ws.keyField).label.toLowerCase()} empty to get the next one.` : ''}</p>
+              <p className="text-xs text-muted-foreground">
+                {editing ? `This ${ws.rowLabel} is not in the Google Sheet yet. Pick a tab to file it there: it is appended to that tab (when the API can write to the sheet).` : `The ${ws.rowLabel} is filed under this tab here and appended to it in the Google Sheet (when the API can write to the sheet).`}
+                {!editing && ws.keyField && ws.fields.find((f) => f.key === ws.keyField) ? ` Leave the ${ws.fields.find((f) => f.key === ws.keyField).label.toLowerCase()} empty to get the next one.` : ''}
+              </p>
             </div>
           ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -182,41 +182,61 @@ workspacesRouter.post('/:key', async (req, res) => {
   if (!identifying.some((k) => values[k])) throw new HttpError(400, `Give the ${ws.rowLabel} a ${ws.fields.find((f) => f.key === identifying[0])?.label || 'name'} first`);
   const settings = await getSettings(ws);
   const full = Object.fromEntries(ws.fields.map((f) => [f.key, values[f.key] ?? typedValue(f, '')]));
-  const doc = new SheetRow({ workspace: ws.key, source: 'crm', spreadsheetId: settings.spreadsheetId, tab: tab || '', rowNumber: 0, values: full, editedAt: new Date(), updatedBy: who(req) });
+  const doc = new SheetRow({ workspace: ws.key, source: 'crm', spreadsheetId: settings.spreadsheetId, tab: '', rowNumber: 0, values: full, editedAt: new Date(), updatedBy: who(req) });
   doc.key = `crm:${doc._id}`;
-  let sheetWrite = null;
-  if (tab) {
-    // The sheet's text per field, as the sync reads it back (dates as YYYY-MM-DD), so the next sync sees no change.
-    const text = Object.fromEntries(ws.fields.map((f) => [f.key, full[f.key] instanceof Date ? isoDate(full[f.key]) : full[f.key] == null ? '' : String(full[f.key])]));
-    try {
-      const { headers } = await readTabHeaders(settings.spreadsheetId, tab);
-      const mapping = mapHeaders(ws, headers);
-      if (!mapping) throw new HttpError(400, `Tab "${tab}" does not have this page's columns`);
-      const cells = {};
-      for (const [header, key] of Object.entries(mapping)) cells[header] = text[key];
-      const { rowNumber } = await appendSheetRow(settings.spreadsheetId, tab, cells);
-      doc.source = 'sheet';
-      doc.rowNumber = rowNumber;
-      doc.key = await nextRowKey(ws, tab, rowNumber, text);
-      doc.sheet = text;
-      doc.syncedAt = new Date();
-      sheetWrite = { ok: true, tab, rowNumber };
-    } catch (err) {
-      sheetWrite = { ok: false, tab, error: err.message };
-    }
-  }
+  const sheetWrite = tab ? await fileIntoTab(ws, doc, tab, settings) : null;
   await doc.save();
   res.status(201).json({ ...doc.toObject(), sheetWrite });
 });
 
+/**
+ * File a CRM-only row under a tab and append it to that tab in the sheet. On success the row becomes a
+ * sheet row (keyed like the sync keys it, with the written cells as its sheet snapshot); otherwise it
+ * stays a CRM row under the tab. Returns the `sheetWrite` outcome; the caller saves the document.
+ */
+async function fileIntoTab(ws, doc, tab, settings) {
+  doc.tab = tab;
+  // The sheet's text per field, as the sync reads it back (dates as YYYY-MM-DD), so the next sync sees no change.
+  const text = Object.fromEntries(ws.fields.map((f) => [f.key, doc.values[f.key] instanceof Date ? isoDate(doc.values[f.key]) : doc.values[f.key] == null ? '' : String(doc.values[f.key])]));
+  try {
+    const { headers } = await readTabHeaders(settings.spreadsheetId, tab);
+    const mapping = mapHeaders(ws, headers);
+    if (!mapping) throw new HttpError(400, `Tab "${tab}" does not have this page's columns`);
+    const cells = {};
+    for (const [header, key] of Object.entries(mapping)) cells[header] = text[key];
+    const { rowNumber } = await appendSheetRow(settings.spreadsheetId, tab, cells);
+    doc.source = 'sheet';
+    doc.spreadsheetId = settings.spreadsheetId;
+    doc.rowNumber = rowNumber;
+    doc.key = await nextRowKey(ws, tab, rowNumber, text);
+    doc.sheet = text;
+    doc.syncedAt = new Date();
+    doc.missingSince = null;
+    return { ok: true, tab, rowNumber };
+  } catch (err) {
+    return { ok: false, tab, error: err.message };
+  }
+}
+
+// Edit fields. `tab` on a row that is not in the sheet yet (added here) moves it under that tab and
+// appends it to the sheet, like adding it there; the response then carries `sheetWrite`.
 workspacesRouter.patch('/:key/:id', async (req, res) => {
   const ws = req.ws;
-  const values = parseBody(ws, req.body);
-  const set = { editedAt: new Date(), updatedBy: who(req) };
-  for (const [k, v] of Object.entries(values)) set[`values.${k}`] = v;
-  const doc = await SheetRow.findOneAndUpdate({ _id: req.params.id, workspace: ws.key }, { $set: set }, { new: true }).select(PUBLIC).lean();
+  const { tab, ...rest } = z.object({ tab: z.string().max(100).optional() }).passthrough().parse(req.body);
+  const values = parseBody(ws, rest);
+  const doc = await SheetRow.findOne({ _id: req.params.id, workspace: ws.key });
   if (!doc) throw new HttpError(404, 'Row not found');
-  res.json(doc);
+  doc.values = { ...doc.values, ...values };
+  doc.markModified('values');
+  doc.editedAt = new Date();
+  doc.updatedBy = who(req);
+  let sheetWrite = null;
+  if (tab && tab !== doc.tab && doc.source === 'sheet') throw new HttpError(400, 'This row is already in the sheet; move it there, the next sync follows');
+  if (tab && doc.source !== 'sheet') sheetWrite = await fileIntoTab(ws, doc, tab, await getSettings(ws));
+  await doc.save();
+  const out = doc.toObject();
+  delete out.sheet;
+  res.json({ ...out, sheetWrite });
 });
 
 workspacesRouter.delete('/:key/:id', async (req, res) => {

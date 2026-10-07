@@ -38,7 +38,9 @@ export function EmailEvaluationDialog({ open, onOpenChange, item, tabs = [] }) {
   const update = useUpdateRow();
   const editing = Boolean(item?._id);
   const [form, setForm] = useState(() => blank(item));
-  const [tab, setTab] = useState(tabs[0] || '');
+  // A row that is not in the sheet yet (added here) can still be moved into a tab; a synced row stays where the sheet has it.
+  const canPickTab = tabs.length > 0 && (!editing || item.source !== 'sheet');
+  const [tab, setTab] = useState(editing ? item?.tab || '' : tabs[0] || '');
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const pending = create.isPending || update.isPending;
   const canSave = Boolean(form.clientName.trim() || form.company.trim() || form.primaryEmail.trim());
@@ -48,8 +50,12 @@ export function EmailEvaluationDialog({ open, onOpenChange, item, tabs = [] }) {
     const data = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v.trim()]));
     try {
       if (editing) {
-        await update.mutateAsync({ id: item._id, data });
-        toast.success('Row saved');
+        const moving = canPickTab && tab && tab !== item.tab;
+        const doc = await update.mutateAsync({ id: item._id, data: moving ? { ...data, tab } : data });
+        const w = doc.sheetWrite;
+        if (w?.ok) toast.success(`Row saved and written to the "${w.tab}" tab of the sheet (row ${w.rowNumber})`);
+        else if (w) toast.warning(`Row saved under "${w.tab}", but not written to the sheet`, { description: w.error, duration: 8000 });
+        else toast.success('Row saved');
       } else {
         const doc = await create.mutateAsync(tab ? { ...data, tab } : data);
         const w = doc.sheetWrite;
@@ -71,14 +77,15 @@ export function EmailEvaluationDialog({ open, onOpenChange, item, tabs = [] }) {
             <DialogTitle>{editing ? `Edit ${item.clientName || item.company || 'row'}` : 'New email evaluation'}</DialogTitle>
             <DialogDescription>{editing ? (item.tab ? `From the "${item.tab}" tab of the sheet. A change here stays until the same cell changes in the sheet.` : 'Added in the CRM (not in the sheet).') : 'Rows added here live in the CRM only; the sheet is not changed.'}</DialogDescription>
           </DialogHeader>
-          {!editing && tabs.length ? (
+          {canPickTab ? (
             <div className="grid gap-1.5 rounded-md border bg-muted/40 p-3">
-              <Label htmlFor="ee-tab">Add to sheet tab</Label>
-              <Select value={tab} onValueChange={setTab}>
+              <Label htmlFor="ee-tab">{editing ? 'Move to sheet tab' : 'Add to sheet tab'}</Label>
+              <Select value={tab || '__none__'} onValueChange={(v) => setTab(v === '__none__' ? '' : v)}>
                 <SelectTrigger id="ee-tab" className="w-full bg-background">
                   <SelectValue placeholder="Choose a tab" />
                 </SelectTrigger>
                 <SelectContent>
+                  {editing ? <SelectItem value="__none__">Keep in the CRM only</SelectItem> : null}
                   {tabs.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
@@ -86,7 +93,7 @@ export function EmailEvaluationDialog({ open, onOpenChange, item, tabs = [] }) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground">The row is filed under this tab here and appended to it in the Google Sheet (when the API can write to the sheet).</p>
+              <p className="text-xs text-muted-foreground">{editing ? 'This row is not in the Google Sheet yet. Pick a tab to file it there: it is appended to that tab (when the API can write to the sheet).' : 'The row is filed under this tab here and appended to it in the Google Sheet (when the API can write to the sheet).'}</p>
             </div>
           ) : null}
           <div className="grid gap-3 sm:grid-cols-2">

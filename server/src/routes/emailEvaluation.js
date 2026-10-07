@@ -191,39 +191,58 @@ emailEvaluationRouter.post('/', async (req, res) => {
   const fields = toFields(body);
   if (!fields.clientName && !fields.primaryEmail && !fields.company) throw new HttpError(400, 'Give the row a client name, company or email');
   const settings = await getSettings();
-  const doc = new EmailEvaluation({ source: 'crm', spreadsheetId: settings.spreadsheetId, tab: tab || '', rowNumber: 0, ...fields, editedAt: new Date(), updatedBy: who(req) });
+  const doc = new EmailEvaluation({ source: 'crm', spreadsheetId: settings.spreadsheetId, tab: '', rowNumber: 0, ...fields, editedAt: new Date(), updatedBy: who(req) });
   doc.key = `crm:${doc._id}`;
-  let sheetWrite = null;
-  if (tab) {
-    // The sheet's text for each field, as the sync would read it back (so the next sync sees no change).
-    const text = Object.fromEntries(EVAL_FIELDS.map((f) => [f, f === 'date' ? fields.dateLabel || '' : fields[f] || '']));
-    try {
-      const { headers } = await readTabHeaders(settings.spreadsheetId, tab);
-      const mapping = mapHeaders(headers);
-      if (!mapping) throw new HttpError(400, `Tab "${tab}" has no CLIENT NAME / PRIMARY EMAIL column`);
-      const cells = {};
-      for (const [header, field] of Object.entries(mapping)) cells[header] = text[field];
-      const { rowNumber } = await appendSheetRow(settings.spreadsheetId, tab, cells);
-      doc.source = 'sheet';
-      doc.rowNumber = rowNumber;
-      doc.key = await nextRowKey(settings.spreadsheetId, tab, rowNumber, text);
-      doc.sheet = text;
-      doc.syncedAt = new Date();
-      sheetWrite = { ok: true, tab, rowNumber };
-    } catch (err) {
-      sheetWrite = { ok: false, tab, error: err.message };
-    }
-  }
+  const sheetWrite = tab ? await fileIntoTab(doc, tab, settings) : null;
   await doc.save();
   res.status(201).json({ ...doc.toObject(), sheetWrite });
 });
 
+/**
+ * File a CRM-only row under a tab and append it to that tab in the sheet. On success the row becomes a
+ * sheet row (keyed like the sync keys it, with the written cells as its sheet snapshot); otherwise it
+ * stays a CRM row under the tab. Returns the `sheetWrite` outcome; the caller saves the document.
+ */
+async function fileIntoTab(doc, tab, settings) {
+  doc.tab = tab;
+  // The sheet's text for each field, as the sync would read it back (so the next sync sees no change).
+  const text = Object.fromEntries(EVAL_FIELDS.map((f) => [f, f === 'date' ? doc.dateLabel || '' : doc[f] || '']));
+  try {
+    const { headers } = await readTabHeaders(settings.spreadsheetId, tab);
+    const mapping = mapHeaders(headers);
+    if (!mapping) throw new HttpError(400, `Tab "${tab}" has no CLIENT NAME / PRIMARY EMAIL column`);
+    const cells = {};
+    for (const [header, field] of Object.entries(mapping)) cells[header] = text[field];
+    const { rowNumber } = await appendSheetRow(settings.spreadsheetId, tab, cells);
+    doc.source = 'sheet';
+    doc.spreadsheetId = settings.spreadsheetId;
+    doc.rowNumber = rowNumber;
+    doc.key = await nextRowKey(settings.spreadsheetId, tab, rowNumber, text);
+    doc.sheet = text;
+    doc.syncedAt = new Date();
+    doc.missingSince = null;
+    return { ok: true, tab, rowNumber };
+  } catch (err) {
+    return { ok: false, tab, error: err.message };
+  }
+}
+
+// Edit fields. `tab` on a row that is not in the sheet yet (added here) moves it under that tab and
+// appends it to the sheet, like adding it there; the response then carries `sheetWrite`.
 emailEvaluationRouter.patch('/:id', async (req, res) => {
-  const body = rowInput.parse(req.body);
+  const { tab, ...rest } = z.object({ tab: z.string().max(100).optional() }).passthrough().parse(req.body);
+  const body = rowInput.parse(rest);
   const fields = toFields(body);
-  const doc = await EmailEvaluation.findByIdAndUpdate(req.params.id, { $set: { ...fields, editedAt: new Date(), updatedBy: who(req) } }, { new: true }).select('-sheet').lean();
+  const doc = await EmailEvaluation.findById(req.params.id);
   if (!doc) throw new HttpError(404, 'Row not found');
-  res.json(doc);
+  Object.assign(doc, fields, { editedAt: new Date(), updatedBy: who(req) });
+  let sheetWrite = null;
+  if (tab && tab !== doc.tab && doc.source === 'sheet') throw new HttpError(400, 'This row is already in the sheet; move it there, the next sync follows');
+  if (tab && doc.source !== 'sheet') sheetWrite = await fileIntoTab(doc, tab, await getSettings());
+  await doc.save();
+  const out = doc.toObject();
+  delete out.sheet;
+  res.json({ ...out, sheetWrite });
 });
 
 // Removes the row here only; a row still in the sheet comes back on the next sync.
