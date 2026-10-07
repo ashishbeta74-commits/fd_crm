@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { HttpError } from '../lib/errors.js';
 import { parseDate, utcDate } from '../lib/dates.js';
 import { LinkedSheet } from '../models/LinkedSheet.js';
+import { ImportBatch } from '../models/ImportBatch.js';
 import { SheetRating } from '../models/SheetRating.js';
 import { bust } from '../lib/cache.js';
 import { parseSheetUrl, sheetUrl } from '../services/sheetLink.js';
@@ -58,6 +59,23 @@ export async function upsertSheet(input) {
 // The saved sheet list merged with the import history (same rows as GET /imports/sources).
 sheetsRouter.get('/', async (req, res) => {
   res.json({ items: await listSources() });
+});
+
+// Where a manually added contact can go: each imported list with its imported tabs
+// -> { items: [{ listName, spreadsheetId, url, tabs: [name] }] }, plus whether rows can be written to sheets at all.
+sheetsRouter.get('/targets', async (req, res) => {
+  const batches = await ImportBatch.find({ 'source.type': 'google-sheet', undoneAt: null, status: 'done', plans: { $ne: null } }).sort({ createdAt: -1 }).select('source plans').lean();
+  const seen = new Set();
+  const items = [];
+  for (const b of batches) {
+    const listName = b.source?.listName || b.source?.title || '';
+    if (!listName || seen.has(listName)) continue;
+    seen.add(listName);
+    const tabs = (b.plans || []).filter((p) => p.include).map((p) => p.name);
+    if (tabs.length) items.push({ listName, spreadsheetId: b.source.spreadsheetId, url: b.source.url || sheetUrl(b.source.spreadsheetId, b.source.gid), tabs });
+  }
+  items.sort((a, b) => a.listName.localeCompare(b.listName));
+  res.json({ items, canWrite: writebackInfo().configured });
 });
 
 sheetsRouter.post('/', async (req, res) => {

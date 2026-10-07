@@ -22,6 +22,8 @@ export const WORKSPACES = [
     },
     // The column that identifies a row across syncs (falls back to email / name, then the row number).
     keyField: 'enquiryId',
+    // A row added in the CRM without an id gets the next one ("ENQ-FD-0377"), like the sheet's auto-generated column.
+    autoId: { prefix: 'ENQ-FD-', digits: 4 },
     // The main date (date range filter, default sort) and the status field (the tiles count its values).
     dateField: 'date',
     statusField: 'status',

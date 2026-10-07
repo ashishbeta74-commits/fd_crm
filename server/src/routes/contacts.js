@@ -14,6 +14,8 @@ import { computeDedupeKey } from '../lib/mapping.js';
 import { composeLocation } from '../lib/geo.js';
 import { LI_STEPS } from '../linkedin.js';
 import { formatZoned } from '../config/timezone.js';
+import { ImportBatch } from '../models/ImportBatch.js';
+import { appendSheetRow } from '../services/sheetAppend.js';
 
 export const contactsRouter = Router();
 
@@ -160,6 +162,8 @@ const contactInput = z
     priority: z.enum(['', ...PRIORITY_KEYS]).optional(),
     category: z.enum(['', ...CATEGORY_KEYS]).optional(),
     allowDuplicate: z.boolean().optional(),
+    // The list (and workbook tab) a manually added contact belongs to; the row is appended to that tab when possible.
+    source: z.object({ sheetName: z.string().trim().max(200).default(''), tabName: z.string().trim().max(100).default('') }).optional(),
   })
   .strict();
 
@@ -213,6 +217,10 @@ export function applyInput(doc, input, { logEdits = true } = {}) {
     doc.markModified('extra');
   }
   if (input.tags !== undefined) doc.tags = normalizeTags(input.tags);
+  if (input.source !== undefined) {
+    doc.source = { ...(doc.source?.toObject?.() || doc.source || {}), sheetName: input.source.sheetName, tabName: input.source.tabName };
+    if (!doc.isNew && logEdits) activities.push({ type: 'edit', message: input.source.sheetName ? `Moved to list ${input.source.sheetName}${input.source.tabName ? ` (${input.source.tabName})` : ''}` : 'Removed from its list' });
+  }
   if (input.priority !== undefined && input.priority !== (doc.priority || '')) {
     const from = doc.priority;
     doc.priority = input.priority;
@@ -404,9 +412,52 @@ contactsRouter.post('/', async (req, res) => {
     if (dup) throw new HttpError(409, 'A contact with the same email (or name + company) already exists', { existing: dup });
   }
   doc.activities.push({ type: 'note', message: 'Contact created manually' });
+  // Added to a list that came from a Google Sheet: append the row to that tab too (needs the service account).
+  let sheetWrite = null;
+  const target = input.source?.sheetName && input.source?.tabName ? await sheetTarget(input.source.sheetName, input.source.tabName) : null;
+  if (input.source?.tabName && !target) sheetWrite = { ok: false, tab: input.source.tabName, error: `List "${input.source.sheetName}" has no imported tab called "${input.source.tabName}"` };
+  if (target) {
+    try {
+      const { rowNumber } = await appendSheetRow(target.spreadsheetId, target.tab, contactCells(doc, target.mapping));
+      doc.source.row = rowNumber;
+      doc.source.batchId = target.batchId;
+      doc.source.fileName = target.fileName;
+      doc.activities.push({ type: 'note', message: `Added to the "${target.tab}" tab of the ${input.source.sheetName} sheet (row ${rowNumber})`, source: 'app' });
+      sheetWrite = { ok: true, tab: target.tab, rowNumber };
+    } catch (err) {
+      sheetWrite = { ok: false, tab: target.tab, error: err.message };
+    }
+  }
   await doc.save();
-  res.status(201).json(doc);
+  res.status(201).json({ ...doc.toObject(), sheetWrite });
 });
+
+/** The spreadsheet, tab and column mapping of a list's latest Google Sheet import, or null. */
+async function sheetTarget(listName, tabName) {
+  const batch = await ImportBatch.findOne({ 'source.type': 'google-sheet', 'source.listName': listName, undoneAt: null, status: 'done', plans: { $ne: null } }).sort({ createdAt: -1 }).lean();
+  const plan = batch?.plans?.find((p) => p.include && p.name === tabName);
+  if (!batch?.source?.spreadsheetId || !plan) return null;
+  return { spreadsheetId: batch.source.spreadsheetId, tab: plan.name, mapping: plan.mapping || {}, batchId: batch._id, fileName: batch.fileName || '' };
+}
+
+/** { header -> value } for a contact, following the import's header -> field mapping. */
+function contactCells(doc, mapping) {
+  const cells = {};
+  for (const [header, key] of Object.entries(mapping)) {
+    if (!key) continue;
+    let v = '';
+    if (key === 'stage') v = stageLabel(doc.stage);
+    else if (key === 'bookingDate') v = isoDate(doc.booking?.date);
+    else if (key === 'bookingTime') v = doc.booking?.time || '';
+    else if (key === 'followUp' || key === 'followUp1' || key === 'followUp2') v = isoDate(doc[key]);
+    else if (key === 'priority') v = priorityLabel(doc.priority);
+    else if (key === 'category') v = categoryLabel(doc.category);
+    else if (key === 'tags') v = (doc.tags || []).join(', ');
+    else v = doc[key] == null ? '' : String(doc[key]);
+    cells[header] = v;
+  }
+  return cells;
+}
 
 // ---------- single ----------
 contactsRouter.get('/:id', async (req, res) => {

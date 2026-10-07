@@ -143,7 +143,7 @@ function SheetBar({ meta, isPending }) {
           </Tooltip>
         ) : null}
       </div>
-      {dialog === 'add' ? <EmailEvaluationDialog open onOpenChange={(v) => !v && setDialog(null)} /> : null}
+      {dialog === 'add' ? <EmailEvaluationDialog open onOpenChange={(v) => !v && setDialog(null)} tabs={tabs.length ? tabs : (meta?.tabs || []).map((t) => t.tab).filter(Boolean)} /> : null}
       {dialog === 'sheet' ? <SheetDialog open onOpenChange={(v) => !v && setDialog(null)} sheet={sheet} /> : null}
     </div>
   );

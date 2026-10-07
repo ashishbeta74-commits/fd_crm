@@ -125,8 +125,26 @@ export async function setSheet(ws, { url, tabs }) {
 const emailKey = (s) => cleanEmail(s).toLowerCase().split(/[;,\s]+/)[0] || '';
 const nameKey = (s) => cleanText(s).toLowerCase().replace(/\s+/g, ' ');
 
+/** The key a row added in the CRM gets once it is in the sheet: the base, suffixed when it is already taken. */
+export async function nextRowKey(ws, tab, rowNumber, text) {
+  const base = rowKey(ws, tab, rowNumber, text);
+  const n = await SheetRow.countDocuments({ workspace: ws.key, $or: [{ key: base }, { key: { $regex: `^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}#\\d+$` } }] });
+  return n === 0 ? base : `${base}#${n + 1}`;
+}
+
+/** The next auto-generated id for a workspace with `autoId` ("ENQ-FD-0377"): one above the highest in use. */
+export async function nextAutoId(ws) {
+  if (!ws.autoId || !ws.keyField) return '';
+  const { prefix, digits } = ws.autoId;
+  const rows = await SheetRow.find({ workspace: ws.key, [`values.${ws.keyField}`]: { $regex: `^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\d+$`, $options: 'i' } })
+    .select(`values.${ws.keyField}`)
+    .lean();
+  const max = rows.reduce((m, r) => Math.max(m, Number(String(r.values?.[ws.keyField] || '').slice(prefix.length)) || 0), 0);
+  return `${prefix}${String(max + 1).padStart(digits || 1, '0')}`;
+}
+
 /** The stable identity of a sheet row within the workspace. */
-function rowKey(ws, tab, rowNumber, text) {
+export function rowKey(ws, tab, rowNumber, text) {
   const id = ws.keyField ? cleanText(text[ws.keyField]) : '';
   if (id) return id.toLowerCase();
   const emailField = ws.fields.find((f) => f.type === 'email' || /email|contact/i.test(f.key));

@@ -182,6 +182,8 @@ export const api = {
   // The saved list of calling sheets (name, date, link) - same rows as imports.sources
   sheets: {
     list: () => request('/sheets'),
+    // imported lists with their tabs, for "add this contact to a sheet"
+    targets: () => request('/sheets/targets'),
     save: (body) => request('/sheets', { method: 'POST', body }),
     update: (id, body) => request(`/sheets/${id}`, { method: 'PATCH', body }),
     remove: (id) => request(`/sheets/${id}`, { method: 'DELETE' }),

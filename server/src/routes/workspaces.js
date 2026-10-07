@@ -10,7 +10,8 @@ import { escapeRegex } from '../lib/pool.js';
 import { SheetRow } from '../models/SheetRow.js';
 import { WORKSPACES, getWorkspace, publicWorkspace } from '../workspaces.js';
 import { autoSyncInfo } from '../services/sync.js';
-import { cleanCell, getSettings, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
+import { cleanCell, getSettings, mapHeaders, nextAutoId, nextRowKey, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
+import { appendSheetRow, readTabHeaders } from '../services/sheetAppend.js';
 
 export const workspacesRouter = Router();
 
@@ -165,17 +166,47 @@ function parseBody(ws, body) {
   return values;
 }
 
+// Create a row. With `tab` (a tab of the linked sheet) the row is also appended to that tab when the
+// Google service account is configured; otherwise it stays in the CRM under that tab and `sheetWrite`
+// says why. A workspace with `autoId` fills an empty id. Response: the row + `sheetWrite: { ok, tab, rowNumber | error }`.
 workspacesRouter.post('/:key', async (req, res) => {
   const ws = req.ws;
-  const values = parseBody(ws, req.body);
+  // not trimmed: exported tab names can end in a space ("DAILY ENQUIRY SHEET - OWNER (H ") and must match the sync's
+  const { tab, ...rest } = z.object({ tab: z.string().max(100).optional() }).passthrough().parse(req.body);
+  const values = parseBody(ws, rest);
+  if (ws.keyField && !values[ws.keyField]) {
+    const id = await nextAutoId(ws);
+    if (id) values[ws.keyField] = id;
+  }
   const identifying = [ws.keyField, ...ws.fields.filter((f) => f.search).map((f) => f.key)].filter(Boolean);
   if (!identifying.some((k) => values[k])) throw new HttpError(400, `Give the ${ws.rowLabel} a ${ws.fields.find((f) => f.key === identifying[0])?.label || 'name'} first`);
   const settings = await getSettings(ws);
   const full = Object.fromEntries(ws.fields.map((f) => [f.key, values[f.key] ?? typedValue(f, '')]));
-  const doc = new SheetRow({ workspace: ws.key, source: 'crm', spreadsheetId: settings.spreadsheetId, tab: '', rowNumber: 0, values: full, editedAt: new Date(), updatedBy: who(req) });
+  const doc = new SheetRow({ workspace: ws.key, source: 'crm', spreadsheetId: settings.spreadsheetId, tab: tab || '', rowNumber: 0, values: full, editedAt: new Date(), updatedBy: who(req) });
   doc.key = `crm:${doc._id}`;
+  let sheetWrite = null;
+  if (tab) {
+    // The sheet's text per field, as the sync reads it back (dates as YYYY-MM-DD), so the next sync sees no change.
+    const text = Object.fromEntries(ws.fields.map((f) => [f.key, full[f.key] instanceof Date ? isoDate(full[f.key]) : full[f.key] == null ? '' : String(full[f.key])]));
+    try {
+      const { headers } = await readTabHeaders(settings.spreadsheetId, tab);
+      const mapping = mapHeaders(ws, headers);
+      if (!mapping) throw new HttpError(400, `Tab "${tab}" does not have this page's columns`);
+      const cells = {};
+      for (const [header, key] of Object.entries(mapping)) cells[header] = text[key];
+      const { rowNumber } = await appendSheetRow(settings.spreadsheetId, tab, cells);
+      doc.source = 'sheet';
+      doc.rowNumber = rowNumber;
+      doc.key = await nextRowKey(ws, tab, rowNumber, text);
+      doc.sheet = text;
+      doc.syncedAt = new Date();
+      sheetWrite = { ok: true, tab, rowNumber };
+    } catch (err) {
+      sheetWrite = { ok: false, tab, error: err.message };
+    }
+  }
   await doc.save();
-  res.status(201).json(doc.toObject());
+  res.status(201).json({ ...doc.toObject(), sheetWrite });
 });
 
 workspacesRouter.patch('/:key/:id', async (req, res) => {

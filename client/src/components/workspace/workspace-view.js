@@ -143,7 +143,7 @@ function SheetBar({ workspaceKey, meta, isPending }) {
           </Tooltip>
         ) : null}
       </div>
-      {dialog === 'add' && ws ? <WorkspaceDialog workspace={ws} options={meta.filters} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
+      {dialog === 'add' && ws ? <WorkspaceDialog workspace={ws} options={meta.filters} tabs={tabs.length ? tabs : (meta.tabs || []).map((t) => t.tab).filter(Boolean)} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
       {dialog === 'sheet' ? <SheetDialog workspaceKey={workspaceKey} open onOpenChange={(v) => !v && setDialog(null)} sheet={sheet} /> : null}
     </div>
   );

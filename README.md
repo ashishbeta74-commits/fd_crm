@@ -164,6 +164,15 @@ status value with its share, business value, rows added here), search, a dropdow
 counts, a date range on the main date, sortable columns, in-place editing (dropdowns for status-like fields, date pickers for
 dates), an edit-everything dialog, delete, and an .xlsx export of the view.
 
+### Adding rows by hand, into the sheet too
+
+*Add contact*, *Add row* (Email Evaluation) and *Add enquiry* (Daily Enquiries) ask which list / sheet tab the new row belongs to
+(every tab of the linked sheet is offered; for contacts, every imported list and its imported tabs). The row is filed under that tab
+in the CRM and **appended to that tab in the Google Sheet** in the tab's own column order, so the sheet stays complete. Writing
+into sheets needs the Google service account (`GOOGLE_SERVICE_ACCOUNT_FILE` or `_JSON` on the API host, the sheet shared with it as
+Editor - the same setup as the two-way sync); until then the row is saved under the tab in the CRM only and the confirmation says
+so. An enquiry added without an id gets the next `ENQ-FD-…` number.
+
 ### Sign-in and team access
 
 Only the ten team accounts can use the app (FD-001 Charan, super admin; FD-002 Haroon; FD-003 Abdul; FD-004 Munish; FD-005 Jasleen;

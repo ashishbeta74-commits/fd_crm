@@ -18,24 +18,35 @@ export const valueText = (v) => (v == null ? '' : ISO_DATE.test(String(v)) ? iso
 const NONE = '__none__';
 
 /** Add a row / edit every field of one. Fields follow the workspace config. */
-export function WorkspaceDialog({ workspace: ws, open, onOpenChange, item, options = {} }) {
+export function WorkspaceDialog({ workspace: ws, open, onOpenChange, item, options = {}, tabs = [] }) {
   const create = useCreateRow(ws.key);
   const update = useUpdateRow(ws.key);
   const editing = Boolean(item?._id);
   const [form, setForm] = useState(() => Object.fromEntries(ws.fields.map((f) => [f.key, valueText(item?.values?.[f.key])])));
+  const [tab, setTab] = useState(tabs[0] || '');
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const pending = create.isPending || update.isPending;
   const identifying = [ws.keyField, ...ws.fields.filter((f) => f.search).map((f) => f.key)].filter(Boolean);
+  // a workspace with an auto-generated id (enquiries) needs any other identifying field instead
   const canSave = identifying.some((k) => (form[k] || '').trim());
   const title = item?.values?.[ws.keyField] || item?.values?.clientName || ws.rowLabel;
+  const Row = `${ws.rowLabel[0].toUpperCase()}${ws.rowLabel.slice(1)}`;
 
   const submit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, String(v ?? '').trim()]));
     try {
-      if (editing) await update.mutateAsync({ id: item._id, data });
-      else await create.mutateAsync(data);
-      toast.success(editing ? 'Saved' : `${ws.rowLabel[0].toUpperCase()}${ws.rowLabel.slice(1)} added`);
+      if (editing) {
+        await update.mutateAsync({ id: item._id, data });
+        toast.success('Saved');
+      } else {
+        const doc = await create.mutateAsync(tab ? { ...data, tab } : data);
+        const w = doc.sheetWrite;
+        const id = ws.keyField && doc.values?.[ws.keyField] ? ` ${doc.values[ws.keyField]}` : '';
+        if (w?.ok) toast.success(`${Row}${id} added and written to the "${w.tab}" tab of the sheet (row ${w.rowNumber})`);
+        else if (w) toast.warning(`${Row}${id} added in the CRM under "${w.tab}", but not written to the sheet`, { description: w.error, duration: 8000 });
+        else toast.success(`${Row}${id} added`);
+      }
       onOpenChange(false);
     } catch {
       /* toasted by the mutation */
@@ -53,6 +64,24 @@ export function WorkspaceDialog({ workspace: ws, open, onOpenChange, item, optio
             <DialogTitle>{editing ? `Edit ${title}` : `New ${ws.rowLabel}`}</DialogTitle>
             <DialogDescription>{editing ? (item.tab ? `From the "${item.tab}" tab of the sheet. A change here stays until the same cell changes in the sheet.` : 'Added in the CRM (not in the sheet).') : 'Rows added here live in the CRM only; the sheet is not changed.'}</DialogDescription>
           </DialogHeader>
+          {!editing && tabs.length ? (
+            <div className="grid gap-1.5 rounded-md border bg-muted/40 p-3">
+              <Label htmlFor={`ws-${ws.key}-tab`}>Add to sheet tab</Label>
+              <Select value={tab} onValueChange={setTab}>
+                <SelectTrigger id={`ws-${ws.key}-tab`} className="w-full bg-background">
+                  <SelectValue placeholder="Choose a tab" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tabs.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">The {ws.rowLabel} is filed under this tab here and appended to it in the Google Sheet (when the API can write to the sheet).{ws.keyField && ws.fields.find((f) => f.key === ws.keyField) ? ` Leave the ${ws.fields.find((f) => f.key === ws.keyField).label.toLowerCase()} empty to get the next one.` : ''}</p>
+            </div>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {ws.fields.map((f) => {
               const id = `ws-${ws.key}-${f.key}`;

@@ -136,6 +136,16 @@ export async function setSheet({ url, tabs }) {
 const emailKey = (s) => cleanEmail(s).toLowerCase().split(/[;,\s]+/)[0] || '';
 const nameKey = (s) => cleanText(s).toLowerCase().replace(/\s+/g, ' ');
 
+/** The identity of a sheet row (before the "#n" suffix for repeats): spreadsheet + tab + email, else name, else row number. */
+export const rowKeyBase = (spreadsheetId, tab, rowNumber, values) => `${spreadsheetId}:${tab}:${emailKey(values.primaryEmail) || nameKey(values.clientName) || `row${rowNumber}`}`;
+
+/** The key a row added in the CRM gets once it is in the sheet: the base, suffixed when that email / name is already in the tab. */
+export async function nextRowKey(spreadsheetId, tab, rowNumber, values) {
+  const base = rowKeyBase(spreadsheetId, tab, rowNumber, values);
+  const n = await EmailEvaluation.countDocuments({ $or: [{ key: base }, { key: { $regex: `^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}#\\d+$` } }] });
+  return n === 0 ? base : `${base}#${n + 1}`;
+}
+
 /**
  * Read the workbook and bring the collection in step with it.
  * `force: false` skips the database work when the content is the same as at the last sync.
@@ -166,7 +176,7 @@ export async function syncEmailEvaluations({ force = true, log = console.log } =
     for (const row of sheet.rows) {
       const values = rowValues(row, mapping);
       if (isBlank(values)) continue;
-      const base = `${settings.spreadsheetId}:${sheet.name}:${emailKey(values.primaryEmail) || nameKey(values.clientName) || `row${row.rowNumber}`}`;
+      const base = rowKeyBase(settings.spreadsheetId, sheet.name, row.rowNumber, values);
       const n = (counts.get(base) || 0) + 1;
       counts.set(base, n);
       const key = n === 1 ? base : `${base}#${n}`;
