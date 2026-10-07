@@ -268,6 +268,19 @@ export const api = {
     exportUrl: (params) => `${BASE}/email-evaluation/export${toQuery(params)}`,
   },
 
+  // Sheet workspaces (one page per sheet of rows that are not contacts: enquiries, ...)
+  workspaces: {
+    list: () => request('/workspaces'),
+    meta: (key) => request(`/workspaces/${key}/meta`),
+    rows: (key, params) => request(`/workspaces/${key}${toQuery(params)}`),
+    create: (key, body) => request(`/workspaces/${key}`, { method: 'POST', body }),
+    update: (key, id, body) => request(`/workspaces/${key}/${id}`, { method: 'PATCH', body }),
+    remove: (key, id) => request(`/workspaces/${key}/${id}`, { method: 'DELETE' }),
+    sync: (key) => request(`/workspaces/${key}/sync`, { method: 'POST', body: {} }),
+    setSheet: (key, body) => request(`/workspaces/${key}/sheet`, { method: 'PUT', body }),
+    exportUrl: (key, params) => `${BASE}/workspaces/${key}/export${toQuery(params)}`,
+  },
+
   duplicates: {
     find: (params) => request(`/duplicates${toQuery(params)}`),
     merge: (body) => request('/duplicates/merge', { method: 'POST', body }),
@@ -310,4 +323,6 @@ export const qk = {
   linkedinStats: (params) => ['linkedin', 'stats', params || {}],
   emailEvaluationMeta: ['email-evaluation', 'meta'],
   emailEvaluationList: (params) => ['email-evaluation', 'list', params || {}],
+  workspaceMeta: (key) => ['workspace', key, 'meta'],
+  workspaceRows: (key, params) => ['workspace', key, 'rows', params || {}],
 };

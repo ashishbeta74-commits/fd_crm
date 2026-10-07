@@ -20,6 +20,8 @@ import { emailRouter } from './routes/email.js';
 import { linkedinRouter } from './routes/linkedin.js';
 import { emailEvaluationRouter } from './routes/emailEvaluation.js';
 import { startEmailEvaluationSync } from './services/emailEvaluation.js';
+import { workspacesRouter } from './routes/workspaces.js';
+import { startWorkspaceSync } from './services/workspaces.js';
 import { getDbUri } from './config/db.js';
 import { startAutoSync } from './services/sync.js';
 import { startWriteback } from './services/writeback.js';
@@ -40,6 +42,7 @@ import { seedUsers } from './services/users.js';
 export function createApp() {
   startAutoSync();
   startEmailEvaluationSync();
+  startWorkspaceSync();
   startWriteback();
   startPush();
   startDailyReports();
@@ -99,6 +102,7 @@ export function createApp() {
   app.use('/api/email', emailRouter);
   app.use('/api/linkedin', linkedinRouter);
   app.use('/api/email-evaluation', emailEvaluationRouter);
+  app.use('/api/workspaces', workspacesRouter);
   app.use('/api/push', pushRouter);
   app.use('/api/events', eventsRouter);
 

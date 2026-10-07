@@ -147,6 +147,23 @@ covers name, company, emails, phone, notes and status; filters cover tab, year e
 range; *Export* downloads the view as .xlsx in the sheet's column layout. The first row is empty on a fresh database until the API's
 first start-up sync (20 s after start) or a *Sync now*. An admin can point the page at another sheet (the gear next to *Add row*).
 
+### Sheet workspaces: Daily Enquiries (and the next sheets)
+
+A **sheet workspace** is a CRM page for a Google Sheet whose rows are not contacts. The first one, **Daily Enquiries**
+(sidebar, amber clipboard icon, `/enquiries`), reads the Daily Enquiry Sheet's main tab: enquiry id, date, lead type / channel /
+source, which mailbox it came in on, client contact and name, city, service type, travel date, pickup and drop, vehicle, who it is
+with, the quote, status, remarks, follow-up instructions, ageing, follow-up count and dates 1-6, business value. The other tabs of
+that workbook (the pivot dashboard, the incident log, the lead-source copy) are not read.
+
+Each workspace is one entry in `server/src/workspaces.js` (fields, the sheet headers that feed them, the key column, which fields
+are filters / editable in place / searched / sortable, the status and value fields for the tiles) plus a sidebar link in
+`client/src/lib/workspaces.js` and a one-line page under `client/src/app/<slug>/page.js`. Everything else is shared: the sync (same
+rules as the Email Evaluation CRM - rows keyed by the id column, three-way merge, rows gone from the sheet dropped unless edited
+here), the API under `/api/workspaces/<key>`, and the page: sheet bar with *Sync now* / *Add* / admin re-link, tiles (total, one per
+status value with its share, business value, rows added here), search, a dropdown per filter field showing the values in use with
+counts, a date range on the main date, sortable columns, in-place editing (dropdowns for status-like fields, date pickers for
+dates), an edit-everything dialog, delete, and an .xlsx export of the view.
+
 ### Sign-in and team access
 
 Only the ten team accounts can use the app (FD-001 Charan, super admin; FD-002 Haroon; FD-003 Abdul; FD-004 Munish; FD-005 Jasleen;

@@ -16,6 +16,7 @@ import { LoginScreen } from '@/components/auth/login-screen';
 import { UserMenu } from '@/components/auth/user-menu';
 import { LoadingScreen } from '@/components/loading-screen';
 import { cn } from '@/lib/utils';
+import { WORKSPACE_NAV } from '@/lib/workspaces';
 
 const NAV = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -25,6 +26,8 @@ const NAV = [
   // The other CRMs get their own icon colour so they read as separate workspaces: LinkedIn's blue, a mail green.
   { href: '/linkedin', label: 'LinkedIn CRM', icon: Linkedin, accent: 'text-[#0a66c2] dark:text-sky-400' },
   { href: '/email-evaluation', label: 'Email Evaluation', icon: MailCheck, accent: 'text-emerald-600 dark:text-emerald-400' },
+  // one entry per sheet workspace (client/src/lib/workspaces.js)
+  ...WORKSPACE_NAV.map(({ href, label, icon, accent }) => ({ href, label, icon, accent })),
   { href: '/duplicates', label: 'Duplicates', icon: Copy },
   { href: '/templates', label: 'Email templates', icon: Mail },
   { href: '/scripts', label: 'Phone scripts & Q&A', icon: BookOpen },
