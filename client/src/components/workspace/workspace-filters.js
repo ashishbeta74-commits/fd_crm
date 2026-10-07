@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -26,6 +27,8 @@ export function parseParams(sp) {
   const limit = parseInt(get('limit'), 10);
   const out = {
     q: get('q'),
+    // which date column the range applies to ('' = the workspace's main date)
+    dateField: get('dateField'),
     from: get('from'),
     to: get('to'),
     tab: get('tab'),
@@ -143,7 +146,9 @@ export function WorkspaceToolbar({ workspace, meta, params, setParams, clearFilt
   const filterFields = (ws?.fields || []).filter((f) => f.filter);
   const searchFields = (ws?.fields || []).filter((f) => f.search).map((f) => f.label.toLowerCase());
   const tabOptions = (meta?.tabs || []).map((t) => ({ key: t.tab || 'none', label: t.tab || 'Added in the CRM', count: t.count }));
-  const dateField = (ws?.fields || []).find((f) => f.key === ws?.dateField);
+  // The date range applies to one date column: the workspace's main date, or any other date field the user picks.
+  const dateFields = (ws?.fields || []).filter((f) => f.type === 'date');
+  const dateField = dateFields.find((f) => f.key === params.dateField) || dateFields.find((f) => f.key === ws?.dateField) || dateFields[0];
   const exportHref = api.workspaces.exportUrl(ws?.key, { ...params, page: undefined, limit: undefined });
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -155,10 +160,26 @@ export function WorkspaceToolbar({ workspace, meta, params, setParams, clearFilt
       })}
       {tabOptions.length > 1 ? <MultiFilter label="Tab" options={tabOptions} value={params.tab} onChange={(tab) => setParams({ tab })} /> : null}
       {dateField ? (
-        <>
-          <DateBound label={`${dateField.label} from`} value={params.from} onChange={(from) => setParams({ from })} />
+        <div className="flex flex-wrap items-center gap-1.5 rounded-md border px-2 py-1">
+          {dateFields.length > 1 ? (
+            <Select value={dateField.key} onValueChange={(dateField) => setParams({ dateField: dateField === (ws?.dateField || dateFields[0]?.key) ? '' : dateField })}>
+              <SelectTrigger size="sm" className={cn('h-8 max-w-48 border-0 shadow-none', (params.from || params.to) && ACTIVE)} aria-label="Date column to filter on">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {dateFields.map((f) => (
+                  <SelectItem key={f.key} value={f.key}>
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <span className="text-sm text-muted-foreground">{dateField.label}</span>
+          )}
+          <DateBound label="from" value={params.from} onChange={(from) => setParams({ from })} />
           <DateBound label="to" value={params.to} onChange={(to) => setParams({ to })} />
-        </>
+        </div>
       ) : null}
       {activeCount ? (
         <Button variant="ghost" onClick={clearFilters}>

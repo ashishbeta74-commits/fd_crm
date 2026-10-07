@@ -9,7 +9,7 @@ import { HttpError } from '../lib/errors.js';
 import { isoDate, parseDate } from '../lib/dates.js';
 import { SheetRow } from '../models/SheetRow.js';
 import { Setting } from '../models/User.js';
-import { WORKSPACES, getWorkspace } from '../workspaces.js';
+import { WORKSPACES, getWorkspace, rankOf } from '../workspaces.js';
 import { valueToText } from './excel.js';
 import { loadSheetByLink, parseSheetUrl, sheetUrl } from './sheetLink.js';
 
@@ -224,6 +224,7 @@ export async function syncWorkspace(ws, { force = true, log = console.log } = {}
             rowNumber: r.rowNumber,
             key: r.key,
             values: typedValues(ws, r.text),
+            rank: rankOf(ws, r.text),
             sheet: { ...r.text },
             syncedAt: now,
             missingSince: null,
@@ -248,7 +249,9 @@ export async function syncWorkspace(ws, { force = true, log = console.log } = {}
     }
     if (changed) counts.updated += 1;
     else counts.unchanged += 1;
-    if (changed || doc.tab !== r.tab || doc.rowNumber !== r.rowNumber || doc.missingSince || doc.spreadsheetId !== settings.spreadsheetId) {
+    const rank = rankOf(ws, { ...doc.values, ...(changed ? typedValues(ws, r.text) : {}) });
+    if (rank !== (doc.rank || 0)) set.rank = rank;
+    if (changed || set.rank !== undefined || doc.tab !== r.tab || doc.rowNumber !== r.rowNumber || doc.missingSince || doc.spreadsheetId !== settings.spreadsheetId) {
       set.spreadsheetId = settings.spreadsheetId;
       ops.push({ updateOne: { filter: { _id: doc._id }, update: { $set: set } } });
     }

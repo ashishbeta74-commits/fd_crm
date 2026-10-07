@@ -8,7 +8,7 @@ import { requireAdmin } from '../lib/auth.js';
 import { isoDate, parseDate } from '../lib/dates.js';
 import { escapeRegex } from '../lib/pool.js';
 import { SheetRow } from '../models/SheetRow.js';
-import { WORKSPACES, getWorkspace, publicWorkspace } from '../workspaces.js';
+import { WORKSPACES, getWorkspace, publicWorkspace, rankOf } from '../workspaces.js';
 import { autoSyncInfo } from '../services/sync.js';
 import { cleanCell, getSettings, mapHeaders, nextAutoId, nextRowKey, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
 import { appendSheetRow, readTabHeaders } from '../services/sheetAppend.js';
@@ -32,6 +32,8 @@ workspacesRouter.param('key', (req, res, next, key) => {
 
 const baseQuery = z.object({
   q: z.string().trim().max(200).default(''),
+  // which date column `from` / `to` apply to (any date field); the workspace's main date when empty
+  dateField: z.string().max(60).default(''),
   from: z.string().max(20).default(''),
   to: z.string().max(20).default(''),
   missing: z.enum(['', 'yes']).default(''),
@@ -56,10 +58,11 @@ function buildFilter(ws, p, raw) {
   }
   const tabs = csv(p.tab);
   if (tabs.length) and.push({ tab: { $in: tabs.map((t) => (t === 'none' ? '' : t)) } });
-  if (ws.dateField) {
+  const dateField = ws.fields.some((f) => f.key === p.dateField && f.type === 'date') ? p.dateField : ws.dateField;
+  if (dateField) {
     const from = parseDate(p.from);
     const to = parseDate(p.to);
-    if (from || to) and.push({ [`values.${ws.dateField}`]: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) } });
+    if (from || to) and.push({ [`values.${dateField}`]: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) } });
   }
   if (p.missing === 'yes') and.push({ missingSince: { $ne: null } });
   return { $and: and };
@@ -71,6 +74,8 @@ function sortSpec(ws, p) {
   const defaultDir = key === ws.defaultSort?.field ? ws.defaultSort.dir : ws.fields.find((f) => f.key === key)?.type === 'date' ? 'desc' : 'asc';
   const dir = (p.dir || defaultDir) === 'asc' ? 1 : -1;
   const path = key === 'updatedAt' || key === 'tab' ? key : `values.${key}`;
+  // The workspace's own order (Sprinters, SUVs, sedans…) comes first when sorting by the ranked field.
+  if (ws.rankBy && key === ws.rankBy.field) return { rank: dir, [path]: dir, _id: -1 };
   return { [path]: dir, _id: -1 };
 }
 
@@ -182,7 +187,7 @@ workspacesRouter.post('/:key', async (req, res) => {
   if (!identifying.some((k) => values[k])) throw new HttpError(400, `Give the ${ws.rowLabel} a ${ws.fields.find((f) => f.key === identifying[0])?.label || 'name'} first`);
   const settings = await getSettings(ws);
   const full = Object.fromEntries(ws.fields.map((f) => [f.key, values[f.key] ?? typedValue(f, '')]));
-  const doc = new SheetRow({ workspace: ws.key, source: 'crm', spreadsheetId: settings.spreadsheetId, tab: '', rowNumber: 0, values: full, editedAt: new Date(), updatedBy: who(req) });
+  const doc = new SheetRow({ workspace: ws.key, source: 'crm', spreadsheetId: settings.spreadsheetId, tab: '', rowNumber: 0, values: full, rank: rankOf(ws, full), editedAt: new Date(), updatedBy: who(req) });
   doc.key = `crm:${doc._id}`;
   const sheetWrite = tab ? await fileIntoTab(ws, doc, tab, settings) : null;
   await doc.save();
@@ -228,6 +233,7 @@ workspacesRouter.patch('/:key/:id', async (req, res) => {
   if (!doc) throw new HttpError(404, 'Row not found');
   doc.values = { ...doc.values, ...values };
   doc.markModified('values');
+  doc.rank = rankOf(ws, doc.values);
   doc.editedAt = new Date();
   doc.updatedBy = who(req);
   let sheetWrite = null;

@@ -108,10 +108,12 @@ WORKSPACES.push({
   keyField: 'plate',
   // a line without a vehicle name (the sheet's "All TLC vehicles…" footnote in the plate column) is not a vehicle
   requires: ['vehicle'],
-  dateField: '',
+  dateField: 'insuranceExp',
   statusField: 'plateState',
   valueField: '',
   defaultSort: { field: 'vehicle', dir: 'asc' },
+  // The fleet order the team uses: Sprinters, then SUVs, then the S-Class / sedans (anything else last).
+  rankBy: { field: 'vehicle', groups: ['sprinter|van', 'suv|suburban|yukon|escalade|tahoe|navigator', 's ?class|sclass|sedan|tesla|mercedes|bmw'] },
   fields: [
     { key: 'vehicle', label: 'Vehicle', headers: ['vehicle', 'vehiclename', 'name'], type: 'text', search: true, sort: true, inline: true, width: 'w-44' },
     { key: 'plate', label: 'Plate', headers: ['platenumber', 'plate', 'plateno', 'platedetails'], type: 'text', search: true, sort: true, inline: true, width: 'w-32' },
@@ -152,5 +154,14 @@ export const publicWorkspace = (w) => ({
   statusField: w.statusField,
   valueField: w.valueField || '',
   defaultSort: w.defaultSort,
+  rankBy: w.rankBy ? { field: w.rankBy.field, groups: w.rankBy.groups.length } : null,
   fields: w.fields.map(({ headers, ...f }) => f),
 });
+
+/** 0-based group of a row in the workspace's `rankBy` order (groups.length when nothing matches, or no order). */
+export function rankOf(ws, values) {
+  if (!ws.rankBy) return 0;
+  const v = String(values?.[ws.rankBy.field] || '');
+  const i = ws.rankBy.groups.findIndex((g) => new RegExp(g, 'i').test(v));
+  return i === -1 ? ws.rankBy.groups.length : i;
+}
