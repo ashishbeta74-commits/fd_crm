@@ -140,7 +140,48 @@ WORKSPACES.push({
   ],
 });
 
-export const WORKSPACE_MAP = Object.fromEntries(WORKSPACES.map((w) => [w.key, w]));
+// ---- Client reach-out: the "LA Client Accounts" tab of "Client REACH OUT DATA by Rahul" (the other tabs are short scratch lists) ----
+WORKSPACES.push({
+  key: 'reachout',
+  label: 'Client Reach Out',
+  description: 'Client accounts to reach out to: who they are, how to contact them, the account details and notes, and where each outreach stands.',
+  rowLabel: 'client',
+  sheet: {
+    url: 'https://docs.google.com/spreadsheets/d/1zrXQHIhUwHiKyLQMaQ4H2uei67Ov3k7r2wSRyI6cVB4/edit?gid=546361126#gid=546361126',
+    tabs: [],
+  },
+  keyField: 'accountNo',
+  dateField: 'statusDate',
+  statusField: 'status',
+  // changing the status in the CRM stamps today's date here (unless the edit sets it too)
+  statusDateField: 'statusDate',
+  valueField: '',
+  defaultSort: { field: 'lastName', dir: 'asc' },
+  fields: [
+    // options keep the sheet's spelling ("Not Inerested") so existing rows still match
+    { key: 'status', label: 'Status', headers: ['status'], type: 'enum', filter: true, sort: true, inline: true, width: 'w-44', options: ['Contact/No Response', 'Interested', 'Booked', "Don't Have Ride", 'Not Inerested', 'No Contact details'] },
+    { key: 'statusDate', label: 'Status date', headers: ['statusdate'], type: 'date', sort: true, inline: true },
+    { key: 'accountNo', label: 'Account #', headers: ['accountno', 'accountnumber', 'account'], type: 'text', search: true, sort: true, width: 'w-24' },
+    { key: 'firstName', label: 'First name', headers: ['firstname'], type: 'text', search: true, sort: true, inline: true, width: 'w-32' },
+    { key: 'lastName', label: 'Last name', headers: ['lastname'], type: 'text', search: true, sort: true, inline: true, width: 'w-32' },
+    { key: 'phone', label: 'Cell phone', headers: ['cellularphone', 'cellphone', 'mobile', 'phone'], type: 'phone', search: true, inline: true, width: 'w-36' },
+    { key: 'company', label: 'Company', headers: ['companyname', 'company'], type: 'text', filter: true, search: true, sort: true, inline: true, width: 'w-48' },
+    { key: 'email', label: 'Email', headers: ['emailaddresses', 'emailaddress', 'email'], type: 'email', search: true, inline: true, width: 'w-56' },
+    { key: 'accountType', label: 'Account type', headers: ['accounttype'], type: 'text', filter: true, inline: true, width: 'w-28' },
+    { key: 'city', label: 'City', headers: ['city'], type: 'text', filter: true, search: true, sort: true, inline: true },
+    { key: 'state', label: 'State', headers: ['state'], type: 'text', filter: true, inline: true, width: 'w-20' },
+    { key: 'zip', label: 'Zip', headers: ['zip', 'zipcode'], type: 'text', inline: true, width: 'w-20' },
+    { key: 'officePhone', label: 'Office phone', headers: ['officephone'], type: 'phone', inline: true, width: 'w-36' },
+    { key: 'homePhone', label: 'Home phone', headers: ['homephone'], type: 'phone', inline: true, width: 'w-36' },
+    { key: 'accountStatus', label: 'Account status', headers: ['accountstatus'], type: 'text', filter: true, inline: true, width: 'w-28' },
+    { key: 'accountTerms', label: 'Terms', headers: ['accountterms'], type: 'text', filter: true, inline: true, width: 'w-20' },
+    { key: 'internalNotes', label: 'Internal notes', headers: ['internalprivatenotes', 'internalnotes', 'notes'], type: 'long', search: true, inline: true, width: 'w-72' },
+    { key: 'tripNotes', label: 'Preferences / trip notes', headers: ['preferencestripnotes', 'tripnotes', 'preferences'], type: 'long', search: true, inline: true, width: 'w-72' },
+    { key: 'country', label: 'Country', headers: ['country'], type: 'text', filter: true, inline: true, width: 'w-20' },
+  ],
+});
+
+export const WORKSPACE_MAP =Object.fromEntries(WORKSPACES.map((w) => [w.key, w]));
 export const getWorkspace = (key) => WORKSPACE_MAP[key] || null;
 
 /** What the web app needs to render a workspace (everything but the sheet link, which the meta endpoint carries). */

@@ -161,6 +161,10 @@ deduction, notes, location; tiles count the statuses and sum the amounts due) an
 "Vehicle" tab: plate and state, VIN, registration / insurance / inspection / diamond-sticker expiries, EZ Pass, photo and document
 names, battery and oil-change dates with mileage, service notes). Expiry dates show red once passed and amber within 30 days.
 
+**Client Reach Out** (`/reach-out`) reads the "LA Client Accounts" tab of "Client REACH OUT DATA by Rahul": status and status date,
+account number, name, phones, company, email, account type / status / terms, city / state / zip, internal and trip notes, country.
+Changing a status in the CRM sets the status date to today (`statusDateField` in the config) unless the same edit sets the date.
+
 Each workspace is one entry in `server/src/workspaces.js` (fields, the sheet headers that feed them, the key column, which fields
 are filters / editable in place / searched / sortable, the status and value fields for the tiles) plus a sidebar link in
 `client/src/lib/workspaces.js` and a one-line page under `client/src/app/<slug>/page.js`. Everything else is shared: the sync (same

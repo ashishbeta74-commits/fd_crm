@@ -231,6 +231,11 @@ workspacesRouter.patch('/:key/:id', async (req, res) => {
   const values = parseBody(ws, rest);
   const doc = await SheetRow.findOne({ _id: req.params.id, workspace: ws.key });
   if (!doc) throw new HttpError(404, 'Row not found');
+  // A status change stamps the workspace's status date with today, unless the edit sets that date itself.
+  const sdf = ws.statusDateField && ws.fields.find((f) => f.key === ws.statusDateField);
+  if (sdf && ws.statusField in values && values[ws.statusField] !== (doc.values?.[ws.statusField] ?? '') && !(sdf.key in values)) {
+    values[sdf.key] = typedValue(sdf, new Date().toLocaleDateString('en-CA'));
+  }
   doc.values = { ...doc.values, ...values };
   doc.markModified('values');
   doc.rank = rankOf(ws, doc.values);
