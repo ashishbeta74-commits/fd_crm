@@ -162,7 +162,9 @@ deduction, notes, location; tiles count the statuses and sum the amounts due) an
 names, battery and oil-change dates with mileage, service notes). Expiry dates show red once passed and amber within 30 days.
 
 **Client Reach Out** (`/reach-out`) reads the "LA Client Accounts" tab of "Client REACH OUT DATA by Rahul": status and status date,
-account number, name, phones, company, email, account type / status / terms, city / state / zip, internal and trip notes, country.
+account number, name, phones, company, email, account type / status / terms, city / state / zip, internal and trip notes, country,
+and last activity (merged in from the Last_Activity_Passengers export by email / phone; passengers not already listed were added as
+CRM rows).
 Changing a status in the CRM sets the status date to today (`statusDateField` in the config) unless the same edit sets the date.
 
 Each workspace is one entry in `server/src/workspaces.js` (fields, the sheet headers that feed them, the key column, which fields

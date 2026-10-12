@@ -161,6 +161,8 @@ WORKSPACES.push({
     // options keep the sheet's spelling ("Not Inerested") so existing rows still match
     { key: 'status', label: 'Status', headers: ['status'], type: 'enum', filter: true, sort: true, inline: true, width: 'w-44', options: ['Contact/No Response', 'Interested', 'Booked', "Don't Have Ride", 'Not Inerested', 'No Contact details'] },
     { key: 'statusDate', label: 'Status date', headers: ['statusdate'], type: 'date', sort: true, inline: true },
+    // from the Last_Activity_Passengers export, merged in by email / phone (the sheet has no such column yet)
+    { key: 'lastActivity', label: 'Last activity', headers: ['lastactivity'], type: 'date', sort: true, inline: true },
     { key: 'accountNo', label: 'Account #', headers: ['accountno', 'accountnumber', 'account'], type: 'text', search: true, sort: true, width: 'w-24' },
     { key: 'firstName', label: 'First name', headers: ['firstname'], type: 'text', search: true, sort: true, inline: true, width: 'w-32' },
     { key: 'lastName', label: 'Last name', headers: ['lastname'], type: 'text', search: true, sort: true, inline: true, width: 'w-32' },
