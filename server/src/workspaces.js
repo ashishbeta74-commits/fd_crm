@@ -144,6 +144,8 @@ WORKSPACES.push({
 WORKSPACES.push({
   key: 'reachout',
   label: 'Client Reach Out',
+  // the edit / delete buttons as the first table column
+  actionsFirst: true,
   description: 'Client accounts to reach out to: who they are, how to contact them, the account details and notes, and where each outreach stands.',
   rowLabel: 'client',
   sheet: {
@@ -188,6 +190,7 @@ WORKSPACES.push({
 WORKSPACES.push({
   key: 'reservations',
   label: 'Reservations',
+  actionsFirst: true,
   description: 'Every trip from the Limo Anywhere reservation exports, one tab per year: pickup, passenger, company, routing, driver and car, status, payment and trip total.',
   rowLabel: 'trip',
   sheet: null,
@@ -242,6 +245,7 @@ export const publicWorkspace = (w) => ({
   rankBy: w.rankBy ? { field: w.rankBy.field, groups: w.rankBy.groups.length } : null,
   hasSheet: Boolean(w.sheet),
   tabLabel: w.tabLabel || 'Tab',
+  actionsFirst: Boolean(w.actionsFirst),
   groupBy: w.groupBy || null,
   fields: w.fields.map(({ headers, ...f }) => f),
 });

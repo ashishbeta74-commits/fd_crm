@@ -145,12 +145,12 @@ function EditableCell({ workspace: ws, item, field, options }) {
   );
 }
 
-function RowActions({ workspace: ws, item, options, compact = false, tabs = [] }) {
+function RowActions({ workspace: ws, item, options, compact = false, tabs = [], start = false }) {
   const [dialog, setDialog] = useState(null); // 'edit' | 'delete'
   const remove = useRemoveRow(ws.key);
   return (
     <>
-      <div className="flex items-center justify-end gap-1">
+      <div className={cn('flex items-center gap-1', start ? 'justify-start' : 'justify-end')}>
         {compact ? null : (
           <Tooltip>
             <TooltipTrigger asChild>
@@ -242,21 +242,36 @@ function Cell({ workspace: ws, field, item, options }) {
 export function WorkspaceTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, filterValues = {}, showTab = false, tabs = [] }) {
   const [first, ...rest] = columnsOf(ws);
   const widthOf = (f) => f.width || (f.type === 'date' ? 'w-32' : f.type === 'enum' ? 'w-40' : f.type === 'long' ? 'w-80' : 'w-44');
+  // `actionsFirst` workspaces show the edit / delete buttons as the first column instead of the last
+  const front = Boolean(ws.actionsFirst);
+  const actionsHead = <TableHead className={cn('w-24', !front && 'text-right')}>Actions</TableHead>;
+  const actionsCell = (item) => (
+    <TableCell className={cn('align-top', !front && 'text-right')}>
+      <RowActions workspace={ws} item={item} options={filterValues} tabs={tabs} start={front} />
+    </TableCell>
+  );
+  const skeletonActions = (
+    <TableCell>
+      <Skeleton className={cn('h-8 w-16', !front && 'ml-auto')} />
+    </TableCell>
+  );
   return (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
       <Table className="w-max min-w-full">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
+            {front ? actionsHead : null}
             {first.sort ? <SortableHead label={first.label} column={first.key} sort={sort} dir={dir} onSort={onSort} className={cn(STICKY_HEAD, 'min-w-36')} /> : <TableHead className={cn(STICKY_HEAD, 'min-w-36')}>{first.label}</TableHead>}
             {rest.map((f) => (f.sort ? <SortableHead key={f.key} label={f.label} column={f.key} sort={sort} dir={dir} onSort={onSort} /> : <TableHead key={f.key} className="whitespace-nowrap">{f.label}</TableHead>))}
             {showTab ? <TableHead>{ws.tabLabel || 'Tab'}</TableHead> : null}
-            <TableHead className="w-24 text-right">Actions</TableHead>
+            {front ? null : actionsHead}
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading
             ? Array.from({ length: 8 }, (_, i) => (
                 <TableRow key={i} className="group/row">
+                  {front ? skeletonActions : null}
                   <TableCell className={STICKY_CELL}>
                     <Skeleton className="h-4 w-28" />
                   </TableCell>
@@ -266,13 +281,12 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
                     </TableCell>
                   ))}
                   {showTab ? <TableCell /> : null}
-                  <TableCell>
-                    <Skeleton className="ml-auto h-8 w-16" />
-                  </TableCell>
+                  {front ? null : skeletonActions}
                 </TableRow>
               ))
             : items.map((item) => (
                 <TableRow key={item._id} className="group/row">
+                  {front ? actionsCell(item) : null}
                   <TableCell className={cn(STICKY_CELL, 'min-w-36 font-medium')}>
                     <div className="flex items-center gap-1.5">
                       <div className={cn('min-w-0', widthOf(first))}>
@@ -289,9 +303,7 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
                     </TableCell>
                   ))}
                   {showTab ? <TableCell className="text-sm text-muted-foreground">{item.tab || 'CRM'}</TableCell> : null}
-                  <TableCell className="text-right align-top">
-                    <RowActions workspace={ws} item={item} options={filterValues} tabs={tabs} />
-                  </TableCell>
+                  {front ? null : actionsCell(item)}
                 </TableRow>
               ))}
         </TableBody>
