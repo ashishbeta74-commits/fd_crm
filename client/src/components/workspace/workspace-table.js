@@ -161,22 +161,34 @@ function RowActions({ workspace: ws, item, options, compact = false, tabs = [], 
             <TooltipContent>Edit all fields</TooltipContent>
           </Tooltip>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button size="icon-sm" variant="outline" aria-label="More actions">
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            <DropdownMenuItem onSelect={() => setDialog('edit')}>
-              <Pencil /> Edit all fields
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => setDialog('delete')}>
-              <Trash2 /> Delete from the CRM
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {start ? (
+          // actions-first pages: a plain Delete button instead of the "more" menu
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon-sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setDialog('delete')} aria-label="Delete row">
+                <Trash2 />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete from the CRM</TooltipContent>
+          </Tooltip>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon-sm" variant="outline" aria-label="More actions">
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onSelect={() => setDialog('edit')}>
+                <Pencil /> Edit all fields
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => setDialog('delete')}>
+                <Trash2 /> Delete from the CRM
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {dialog === 'edit' ? <WorkspaceDialog key={`${item._id}-${item.updatedAt}`} workspace={ws} item={item} options={options} tabs={tabs} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
       <ConfirmDialog
