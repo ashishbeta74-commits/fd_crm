@@ -1,6 +1,7 @@
 // The team roster. Missing accounts are created on start-up with a generated password each; the
 // passwords are printed once and written to server/initial-passwords.txt (git-ignored) so the
 // super admin can hand them out. Existing accounts are never changed here.
+// `hidePages`: pages left out of that person's sidebar (and redirected away from), e.g. '/' = the team Dashboard.
 import fs from 'node:fs';
 import path from 'node:path';
 import { User } from '../models/User.js';
@@ -8,7 +9,7 @@ import { generatePassword, hashPassword } from '../lib/auth.js';
 
 export const TEAM = [
   { userId: 'FD-001', displayName: 'Charan', username: 'charan', role: 'admin' },
-  { userId: 'FD-002', displayName: 'Haroon', username: 'haroon' },
+  { userId: 'FD-002', displayName: 'Haroon', username: 'haroon', hidePages: ['/'] },
   { userId: 'FD-003', displayName: 'Abdul', username: 'abdul' },
   { userId: 'FD-004', displayName: 'Munish', username: 'munish' },
   { userId: 'FD-005', displayName: 'Jasleen', username: 'jasleen' },
@@ -19,6 +20,8 @@ export const TEAM = [
   { userId: 'FD-010', displayName: 'Sameer', username: 'sameer' },
   { userId: 'FD-011', displayName: 'Rahul', username: 'rahul' },
 ];
+
+export const hiddenPages = (username) => TEAM.find((m) => m.username === username)?.hidePages || [];
 
 const PASSWORD_FILE = path.resolve(process.cwd(), 'initial-passwords.txt');
 

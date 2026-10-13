@@ -22,6 +22,11 @@ const Dash = () => <span className="text-muted-foreground">—</span>;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;
 const NONE = '__none__';
 
+// The header row stays put while the rows scroll: the table box scrolls inside (up to the window's height)
+// and the header sticks to its top.
+const FREEZE_BOX = 'md:max-h-[calc(100dvh-7rem)]';
+const FREEZE_HEAD = 'sticky top-0 z-20 bg-card shadow-[inset_0_-1px_0_var(--border)]';
+
 // The first column stays put while the rest scrolls sideways.
 const STICKY_HEAD = 'md:sticky md:left-0 md:z-10 bg-[color-mix(in_oklab,var(--muted)_40%,var(--card))] md:shadow-[inset_-1px_0_0_var(--border)]';
 const STICKY_CELL = 'md:sticky md:left-0 md:z-10 bg-card group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] md:shadow-[inset_-1px_0_0_var(--border)]';
@@ -493,8 +498,8 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
 
   const table = (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
-      <Table className="w-max min-w-full">
-        <TableHeader>
+      <Table className="w-max min-w-full" containerClassName={FREEZE_BOX}>
+        <TableHeader className={FREEZE_HEAD}>
           <TableRow className="hover:bg-transparent">
             {selection ? (
               <TableHead className="w-10">
@@ -671,8 +676,8 @@ export function WorkspaceGroupTable({ workspace: ws, items = [], loading = false
   ];
   return (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
-      <Table className="w-max min-w-full">
-        <TableHeader>
+      <Table className="w-max min-w-full" containerClassName={FREEZE_BOX}>
+        <TableHeader className={FREEZE_HEAD}>
           <TableRow className="hover:bg-transparent">
             <TableHead className={cn(STICKY_HEAD, 'min-w-48')}>{first.label}</TableHead>
             {rest.map((f) => (

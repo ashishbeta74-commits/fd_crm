@@ -34,6 +34,11 @@ const COLUMNS = [
 ];
 
 // The first column stays put while the rest scrolls sideways.
+// The header row stays put while the rows scroll: the table box scrolls inside (up to the window's height)
+// and the header sticks to its top.
+const FREEZE_BOX = 'md:max-h-[calc(100dvh-7rem)]';
+const FREEZE_HEAD = 'sticky top-0 z-20 bg-card shadow-[inset_0_-1px_0_var(--border)]';
+
 const STICKY_HEAD = 'md:sticky md:left-0 md:z-10 bg-[color-mix(in_oklab,var(--muted)_40%,var(--card))] md:shadow-[inset_-1px_0_0_var(--border)]';
 const STICKY_CELL = 'md:sticky md:left-0 md:z-10 bg-card group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] md:shadow-[inset_-1px_0_0_var(--border)]';
 
@@ -260,8 +265,8 @@ export function EmailEvaluationTable({ items = [], loading = false, dimmed = fal
   const rest = COLUMNS.filter((c) => c.key !== 'clientName');
   return (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
-      <Table className="min-w-[1900px]">
-        <TableHeader>
+      <Table className="min-w-[1900px]" containerClassName={FREEZE_BOX}>
+        <TableHeader className={FREEZE_HEAD}>
           <TableRow className="hover:bg-transparent">
             <SortableHead label={name.label} column={name.sort} sort={sort} dir={dir} onSort={onSort} className={STICKY_HEAD} />
             {rest.map((col) => (col.sort ? <SortableHead key={col.key} label={col.label} column={col.sort} sort={sort} dir={dir} onSort={onSort} /> : <TableHead key={col.key}>{col.label}</TableHead>))}

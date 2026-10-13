@@ -68,9 +68,11 @@ function Foldable({ collapsed, className, children }) {
 
 function NavLinks({ onNavigate, collapsed = false }) {
   const pathname = usePathname();
+  const { user } = useAuth();
+  const hidden = user?.hidePages || [];
   return (
     <nav className="flex flex-col gap-1" aria-label="Main">
-      {NAV.map(({ href, label, icon: Icon, children: Children, accent }, i) => {
+      {NAV.filter((n) => !hidden.includes(n.href)).map(({ href, label, icon: Icon, children: Children, accent }, i) => {
         const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
         const link = (
           <Link

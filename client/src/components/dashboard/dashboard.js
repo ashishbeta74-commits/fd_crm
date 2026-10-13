@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { AlarmClock, BellRing, CalendarCheck, CalendarClock, Flag, Linkedin, PhoneCall, PhoneOff, Plus, RefreshCw, Sparkles, Target, ThumbsDown, Upload, Users, Voicemail } from 'lucide-react';
 import { toast } from 'sonner';
@@ -121,7 +123,18 @@ function Hero({ data, reminders }) {
   );
 }
 
+/** The team dashboard; someone whose roster entry hides it (server/src/services/users.js) lands on My dashboard. */
 export function Dashboard() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const hidden = Boolean(user?.hidePages?.includes('/'));
+  useEffect(() => {
+    if (hidden) router.replace('/me');
+  }, [hidden, router]);
+  return hidden ? null : <Overview />;
+}
+
+function Overview() {
   const { data, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: qk.stats,
     queryFn: api.stats,

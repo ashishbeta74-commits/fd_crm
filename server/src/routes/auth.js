@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { HttpError } from '../lib/errors.js';
 import { bustUser, generatePassword, hashPassword, publicUser, requireAdmin, signToken, verifyPassword } from '../lib/auth.js';
+import { hiddenPages } from '../services/users.js';
 import { rateLimit } from '../lib/rateLimit.js';
 import { User } from '../models/User.js';
 
@@ -28,11 +29,14 @@ authRouter.post('/login', rateLimit({ windowMs: 15 * 60_000, max: 30, name: 'sig
   failures.delete(key);
   user.lastLoginAt = new Date();
   await user.save();
-  res.json({ token: signToken(user), user: publicUser(user) });
+  res.json({ token: signToken(user), user: signedIn(user) });
 });
 
+// the signed-in person, with the pages their sidebar leaves out
+const signedIn = (u) => ({ ...publicUser(u), hidePages: hiddenPages(u.username) });
+
 authRouter.get('/me', (req, res) => {
-  res.json({ user: publicUser(req.user) });
+  res.json({ user: signedIn(req.user) });
 });
 
 // Bearer tokens are stateless; the client forgets the token. Kept so the UI has something to call.
@@ -49,7 +53,7 @@ authRouter.post('/change-password', async (req, res) => {
   user.passwordChangedAt = new Date(); // invalidates every other session of this user
   await user.save();
   bustUser(user._id);
-  res.json({ token: signToken(user), user: publicUser(user) });
+  res.json({ token: signToken(user), user: signedIn(user) });
 });
 
 // ---- super admin: the team list and password resets ----
