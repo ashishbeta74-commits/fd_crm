@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, CalendarPlus, Mail, PhoneCall, PhoneOff, PhoneMissed, Sparkles, ThumbsDown, UserCheck, Users, Voicemail } from 'lucide-react';
+import { ArrowRight, CalendarCheck, CalendarPlus, ListChecks, Mail, MessageSquare, PhoneCall, PhoneOff, PhoneMissed, Sparkles, ThumbsDown, UserCheck, Users, Voicemail } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -99,6 +99,7 @@ export function MyDashboard() {
             <Feed feed={data.feed} className="xl:col-span-3" />
             <Outcomes counts={data.counts} className="xl:col-span-2" />
           </div>
+          <WorkspaceActivity counts={data.workspaces} feed={data.workspaceFeed} />
           {data.team ? <TeamTable team={data.team} selectedId={data.userId} onPick={(id) => setPerson(id === user?._id ? '' : id)} /> : null}
           <p className="text-xs text-muted-foreground">
             Counts start on 25 Sep 2026, when the CRM began recording who made each change. Sheet syncs are not counted for anyone.
@@ -221,6 +222,8 @@ function TeamTable({ team, selectedId, onPick }) {
     ['Worked', (p) => p.worked],
     ['Follow-ups', (p) => p.followUps],
     ['Emails', (p) => p.emails],
+    ['Reach-out', (p) => p.workspaces?.reachout?.total || 0],
+    ['Reservations', (p) => p.workspaces?.reservations?.total || 0],
   ];
   return (
     <SectionCard title="Team">
@@ -255,6 +258,106 @@ function TeamTable({ team, selectedId, onPick }) {
           </TableBody>
         </Table>
       </div>
+    </SectionCard>
+  );
+}
+
+// ---------- Client Reach Out & Reservations: status changes made on those pages (not contacts) ----------
+
+const WS_PAGES = { reachout: { label: 'Client Reach Out', href: '/reach-out' }, reservations: { label: 'Reservations', href: '/reservations' } };
+const NONE = { total: 0, byStatus: {}, byType: {} };
+
+function WorkspaceActivity({ counts = {}, feed = [] }) {
+  const reach = counts.reachout || NONE;
+  const trips = counts.reservations || NONE;
+  return (
+    <section className="space-y-4" aria-labelledby="ws-activity">
+      <h2 id="ws-activity" className="text-base font-semibold">
+        Client Reach Out &amp; Reservations
+      </h2>
+      <div className={TILE_GRID}>
+        <StatTile label="Reach-out updates" value={reach.total} icon={ListChecks} accent="green" caption="status changes on Client Reach Out" />
+        <StatTile label="By call" value={reach.byType.Call || 0} icon={PhoneCall} accent="blue" caption="reach-out type Call" />
+        <StatTile label="By email" value={reach.byType.Email || 0} icon={Mail} accent="pink" caption="reach-out type Email" />
+        <StatTile label="By text" value={reach.byType.Text || 0} icon={MessageSquare} accent="violet" caption="reach-out type Text" />
+        <StatTile label="Reservation updates" value={trips.total} icon={CalendarCheck} accent="amber" caption="status changes on Reservations" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+        <WorkspaceFeed feed={feed} className="xl:col-span-3" />
+        <SectionCard title="Statuses set" className="xl:col-span-2">
+          {reach.total || trips.total ? (
+            <div className="grid gap-5">
+              {[
+                ['reachout', reach],
+                ['reservations', trips],
+              ]
+                .filter(([, w]) => w.total)
+                .map(([key, w]) => {
+                  const rows = Object.entries(w.byStatus).sort((a, b) => b[1] - a[1]);
+                  const max = Math.max(1, ...rows.map((r) => r[1]));
+                  return (
+                    <div key={key} className="grid gap-2">
+                      <p className="text-xs font-medium text-muted-foreground">{WS_PAGES[key].label}</p>
+                      <ul className="grid gap-2">
+                        {rows.map(([status, n]) => (
+                          <li key={status} className="grid grid-cols-[9rem_minmax(0,1fr)_2.5rem] items-center gap-3 text-sm">
+                            <span className="truncate">{status}</span>
+                            <span className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                              <span className="block h-full rounded-full bg-primary" style={{ width: `${(n / max) * 100}%` }} />
+                            </span>
+                            <span className="text-right font-medium tabular-nums">{formatCount(n)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+            </div>
+          ) : (
+            <EmptyState>
+              <ListChecks className="size-5" aria-hidden="true" />
+              No status changes on these pages in this period
+            </EmptyState>
+          )}
+        </SectionCard>
+      </div>
+    </section>
+  );
+}
+
+function WorkspaceFeed({ feed, className }) {
+  return (
+    <SectionCard title="Status changes" className={className}>
+      {feed.length ? (
+        <ol className="-my-2 max-h-[32rem] overflow-y-auto">
+          {feed.map((e, i) => {
+            const page = WS_PAGES[e.workspace] || { label: e.workspace, href: '/' };
+            return (
+              <li key={`${e.rowId}-${e.at}-${i}`}>
+                <Link href={`${page.href}?q=${encodeURIComponent(e.label || '')}`} className={cn(LIST_ROW, 'group flex items-start gap-3')}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {e.label || 'Unnamed'}
+                      <span className="font-normal text-muted-foreground"> · {page.label}</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {e.from || 'Not set'} → <span className="font-medium text-foreground">{e.to || 'Not set'}</span>
+                      {e.reachType ? <span> · by {e.reachType.toLowerCase()}</span> : null}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{formatDateTime(e.at)}</span>
+                  <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <EmptyState>
+          <PhoneOff className="size-5" aria-hidden="true" />
+          No status changes in this period yet
+        </EmptyState>
+      )}
     </SectionCard>
   );
 }

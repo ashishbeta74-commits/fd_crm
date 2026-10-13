@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Contact } from '../models/Contact.js';
 import { User } from '../models/User.js';
+import { WorkspaceEvent } from '../models/WorkspaceEvent.js';
 import { dayRange } from './dailyReport.js';
 
 // Per-person numbers for "My dashboard": what each team member did between two New York days, read from
@@ -115,16 +116,47 @@ export async function personFeed(from, to, userId, limit = 200) {
   return rows;
 }
 
+/**
+ * Status changes made on Client Reach Out / Reservations (models/WorkspaceEvent.js), per person:
+ * { <workspace>: { total, byStatus: { <new status>: n }, byType: { Call | Email | Text: n } } }.
+ */
+export async function workspaceCounts(from, to, userId = null) {
+  const rows = await WorkspaceEvent.aggregate([
+    { $match: { at: { $gte: dayRange(from).start, $lt: dayRange(to).end }, byId: userId || { $ne: null } } },
+    { $group: { _id: { by: '$byId', ws: '$workspace', to: '$to', type: '$reachType' }, n: { $sum: 1 } } },
+  ]);
+  const out = new Map();
+  for (const { _id: g, n } of rows) {
+    if (!out.has(String(g.by))) out.set(String(g.by), {});
+    const p = out.get(String(g.by));
+    const w = (p[g.ws] ||= { total: 0, byStatus: {}, byType: {} });
+    const status = g.to || 'Not set';
+    w.total += n;
+    w.byStatus[status] = (w.byStatus[status] || 0) + n;
+    if (g.type) w.byType[g.type] = (w.byType[g.type] || 0) + n;
+  }
+  return out;
+}
+
+/** The person's status changes on those pages, newest first. */
+function workspaceFeed(from, to, userId, limit = 200) {
+  return WorkspaceEvent.find({ byId: userId, at: { $gte: dayRange(from).start, $lt: dayRange(to).end } })
+    .sort({ at: -1 })
+    .limit(limit)
+    .select('-_id workspace rowId label from to reachType at')
+    .lean();
+}
+
 /** The whole team (active accounts), each with their counts - zero rows included so nobody is missing. */
 export async function teamBoard(from, to) {
-  const [users, counts] = await Promise.all([User.find({}).select('displayName username userId role active').sort({ userId: 1 }).lean(), peopleCounts(from, to)]);
+  const [users, counts, wsCounts] = await Promise.all([User.find({}).select('displayName username userId role active').sort({ userId: 1 }).lean(), peopleCounts(from, to), workspaceCounts(from, to)]);
   return users
-    .filter((u) => u.active || counts.has(String(u._id)))
-    .map((u) => ({ id: String(u._id), name: u.displayName || u.username, userId: u.userId, ...(counts.get(String(u._id)) || emptyRow()) }));
+    .filter((u) => u.active || counts.has(String(u._id)) || wsCounts.has(String(u._id)))
+    .map((u) => ({ id: String(u._id), name: u.displayName || u.username, userId: u.userId, ...(counts.get(String(u._id)) || emptyRow()), workspaces: wsCounts.get(String(u._id)) || {} }));
 }
 
 export async function personSummary(from, to, userId) {
   const id = new mongoose.Types.ObjectId(String(userId));
-  const [counts, feed] = await Promise.all([peopleCounts(from, to, id), personFeed(from, to, id)]);
-  return { counts: counts.get(String(id)) || emptyRow(), feed };
+  const [counts, feed, wsCounts, wsFeed] = await Promise.all([peopleCounts(from, to, id), personFeed(from, to, id), workspaceCounts(from, to, id), workspaceFeed(from, to, id)]);
+  return { counts: counts.get(String(id)) || emptyRow(), feed, workspaces: wsCounts.get(String(id)) || {}, workspaceFeed: wsFeed };
 }

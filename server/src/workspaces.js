@@ -146,6 +146,11 @@ WORKSPACES.push({
   label: 'Client Reach Out',
   // the edit / delete buttons as the first table column
   actionsFirst: true,
+  // columns can be resized by dragging the header edge (widths remembered per browser)
+  resizable: true,
+  // status changes are logged per person for "My dashboard" (models/WorkspaceEvent.js); nameFields label them
+  activity: true,
+  nameFields: ['firstName', 'lastName'],
   description: 'Client accounts to reach out to: who they are, how to contact them, the account details and notes, and where each outreach stands.',
   rowLabel: 'client',
   sheet: {
@@ -160,6 +165,8 @@ WORKSPACES.push({
   valueField: '',
   defaultSort: { field: 'lastName', dir: 'asc' },
   fields: [
+    // how the client was reached; set in the CRM (the sheet has no such column), recorded with each status change
+    { key: 'reachType', label: 'Reach-out type', headers: ['reachouttype', 'reachtype', 'contactmethod'], type: 'enum', filter: true, inline: true, options: ['Call', 'Email', 'Text'], width: 'w-28' },
     // options keep the sheet's spelling ("Not Inerested") so existing rows still match
     { key: 'status', label: 'Status', headers: ['status'], type: 'enum', filter: true, sort: true, inline: true, width: 'w-44', options: ['Contact/No Response', 'Interested', 'Booked', "Don't Have Ride", 'Not Inerested', 'No Contact details'] },
     { key: 'statusDate', label: 'Status date', headers: ['statusdate'], type: 'date', sort: true, inline: true },
@@ -191,6 +198,9 @@ WORKSPACES.push({
   key: 'reservations',
   label: 'Reservations',
   actionsFirst: true,
+  resizable: true,
+  activity: true,
+  nameFields: ['passenger'],
   description: 'Every trip from the Limo Anywhere reservation exports, one tab per year: pickup, passenger, company, routing, driver and car, status, payment and trip total.',
   rowLabel: 'trip',
   sheet: null,
@@ -246,6 +256,7 @@ export const publicWorkspace = (w) => ({
   hasSheet: Boolean(w.sheet),
   tabLabel: w.tabLabel || 'Tab',
   actionsFirst: Boolean(w.actionsFirst),
+  resizable: Boolean(w.resizable),
   groupBy: w.groupBy || null,
   fields: w.fields.map(({ headers, ...f }) => f),
 });

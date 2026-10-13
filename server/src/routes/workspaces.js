@@ -8,6 +8,7 @@ import { requireAdmin } from '../lib/auth.js';
 import { isoDate, parseDate } from '../lib/dates.js';
 import { escapeRegex } from '../lib/pool.js';
 import { SheetRow } from '../models/SheetRow.js';
+import { WorkspaceEvent } from '../models/WorkspaceEvent.js';
 import { WORKSPACES, getWorkspace, publicWorkspace, rankOf } from '../workspaces.js';
 import { autoSyncInfo } from '../services/sync.js';
 import { cleanCell, getSettings, mapHeaders, nextAutoId, nextRowKey, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
@@ -268,6 +269,7 @@ workspacesRouter.patch('/:key/:id', async (req, res) => {
   if (sdf && ws.statusField in values && values[ws.statusField] !== (doc.values?.[ws.statusField] ?? '') && !(sdf.key in values)) {
     values[sdf.key] = typedValue(sdf, new Date().toLocaleDateString('en-CA'));
   }
+  const fromStatus = String(doc.values?.[ws.statusField] ?? '');
   doc.values = { ...doc.values, ...values };
   doc.markModified('values');
   doc.rank = rankOf(ws, doc.values);
@@ -277,6 +279,12 @@ workspacesRouter.patch('/:key/:id', async (req, res) => {
   if (tab && tab !== doc.tab && doc.source === 'sheet') throw new HttpError(400, 'This row is already in the sheet; move it there, the next sync follows');
   if (tab && doc.source !== 'sheet') sheetWrite = await fileIntoTab(ws, doc, tab, await getSettings(ws));
   await doc.save();
+  // who changed the status, for "My dashboard"
+  const toStatus = String(doc.values[ws.statusField] ?? '');
+  if (ws.activity && ws.statusField in values && toStatus !== fromStatus) {
+    const label = (ws.nameFields || []).map((k) => doc.values[k]).filter(Boolean).join(' ');
+    await WorkspaceEvent.create({ workspace: ws.key, rowId: doc._id, label, from: fromStatus, to: toStatus, reachType: String(doc.values.reachType || ''), byId: req.user?._id || null });
+  }
   const out = doc.toObject();
   delete out.sheet;
   res.json({ ...out, sheetWrite });

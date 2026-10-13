@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, MoreHorizontal, Pencil, Trash2, TriangleAlert } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, MoreHorizontal, Pencil, Trash2, TriangleAlert, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { daysFromToday, formatDate } from '@/lib/format';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -226,16 +226,97 @@ function MissingBadge({ item }) {
   );
 }
 
-function SortableHead({ label, column, sort, dir, onSort, className }) {
+function SortableHead({ label, column, sort, dir, onSort, className, style, children, ...rest }) {
   const active = sort === column;
   const Icon = !active ? ChevronsUpDown : dir === 'asc' ? ChevronUp : ChevronDown;
   return (
-    <TableHead aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={className}>
+    <TableHead {...rest} aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={className} style={style}>
       <button type="button" onClick={() => onSort?.(column)} className={cn('-mx-1 inline-flex h-8 items-center gap-1 rounded-sm px-1 text-xs font-medium tracking-wide uppercase whitespace-nowrap outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50', active ? 'text-foreground' : 'text-muted-foreground')}>
         {label}
         <Icon className={cn('size-3.5', !active && 'opacity-50')} aria-hidden />
       </button>
+      {children}
     </TableHead>
+  );
+}
+
+// Pseudo-columns next to the fields: the row's edit / delete buttons and its sheet tab.
+const ACTIONS = '__actions';
+const TAB = '__tab';
+
+/**
+ * The columns a person arranged on a `resizable` workspace - order (drag a header), hidden ones (the Columns
+ * menu) and widths (drag a header's edge) - remembered in this browser per page. Other workspaces get the
+ * default layout and no controls.
+ */
+function useColumnLayout(key, enabled) {
+  const storageKey = `crm:layout:${key}`;
+  const [layout, setLayout] = useState({ order: [], hidden: [], widths: {} });
+  useEffect(() => {
+    if (!enabled) return;
+    try {
+      setLayout({ order: [], hidden: [], widths: {}, ...JSON.parse(localStorage.getItem(storageKey) || '{}') });
+    } catch {
+      /* private mode: default layout */
+    }
+  }, [storageKey, enabled]);
+  const update = useCallback(
+    (fn) =>
+      setLayout((prev) => {
+        const next = fn(prev);
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          /* not remembered */
+        }
+        return next;
+      }),
+    [storageKey],
+  );
+  return [enabled ? layout : { order: [], hidden: [], widths: {} }, update];
+}
+
+/** Drag a header's right edge to resize its column; double-click it to go back to the default width. */
+function ResizeHandle({ column, onResize }) {
+  // the drag swallows the browser's dblclick, so a second press within 400 ms is the reset
+  const lastPress = useRef(0);
+  const start = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastPress.current < 400) {
+      lastPress.current = 0;
+      onResize(column, null);
+      return;
+    }
+    lastPress.current = now;
+    const startX = e.clientX;
+    const startW = e.currentTarget.parentElement.getBoundingClientRect().width;
+    // while resizing, the header must not start a column drag (see dragProps)
+    document.body.dataset.colResize = '1';
+    const move = (ev) => onResize(column, Math.max(56, Math.round(startW + ev.clientX - startX)));
+    const up = () => {
+      delete document.body.dataset.colResize;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize column (double-click to reset)"
+      title="Drag to resize · double-click to reset"
+      draggable={false}
+      onPointerDown={start}
+      onClick={(e) => e.stopPropagation()}
+      className="group/resize absolute top-0 right-0 z-20 flex h-full w-2 cursor-col-resize touch-none justify-center select-none"
+    >
+      {/* always-visible divider; turns the primary colour under the pointer */}
+      <span className="my-2 w-0.5 rounded-full bg-muted-foreground/35 transition-colors group-hover/resize:bg-primary" aria-hidden />
+    </span>
   );
 }
 
@@ -252,74 +333,198 @@ function Cell({ workspace: ws, field, item, options }) {
 }
 
 export function WorkspaceTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, filterValues = {}, showTab = false, tabs = [] }) {
-  const [first, ...rest] = columnsOf(ws);
-  const widthOf = (f) => f.width || (f.type === 'date' ? 'w-32' : f.type === 'enum' ? 'w-40' : f.type === 'long' ? 'w-80' : 'w-44');
+  const custom = Boolean(ws.resizable);
+  const [layout, update] = useColumnLayout(ws.key, custom);
+  const [drag, setDrag] = useState({ id: null, over: null });
+  const fieldsByKey = Object.fromEntries(ws.fields.map((f) => [f.key, f]));
   // `actionsFirst` workspaces show the edit / delete buttons as the first column instead of the last
   const front = Boolean(ws.actionsFirst);
-  const actionsHead = <TableHead className={cn('w-24', !front && 'text-right')}>Actions</TableHead>;
-  const actionsCell = (item) => (
-    <TableCell className={cn('align-top', !front && 'text-right')}>
-      <RowActions workspace={ws} item={item} options={filterValues} tabs={tabs} start={front} />
+  const defaults = [...(front ? [ACTIONS] : []), ...columnsOf(ws).map((f) => f.key), ...(showTab ? [TAB] : []), ...(front ? [] : [ACTIONS])];
+  // the saved order (columns that still exist), then any column it does not know yet
+  const saved = layout.order.filter((id) => defaults.includes(id));
+  const order = [...saved, ...defaults.filter((id) => !saved.includes(id))];
+  let columns = order.filter((id) => !layout.hidden.includes(id));
+  if (!columns.length) columns = order;
+  // the first field column stays put while the rest scrolls sideways
+  const stickyId = columns.find((id) => fieldsByKey[id]);
+  const labelOf = (id) => (id === ACTIONS ? 'Actions' : id === TAB ? ws.tabLabel || 'Tab' : fieldsByKey[id]?.label || id);
+  const widths = layout.widths;
+
+  const setWidth = (id, width) =>
+    update((l) => {
+      const next = { ...l.widths };
+      if (width == null) delete next[id];
+      else next[id] = width;
+      return { ...l, widths: next };
+    });
+  const moveColumn = (id, target) =>
+    update((l) => {
+      const all = [...order];
+      const from = all.indexOf(id);
+      const to = all.indexOf(target);
+      if (from < 0 || to < 0) return l;
+      all.splice(from, 1);
+      all.splice(to, 0, id);
+      return { ...l, order: all };
+    });
+  const toggleColumn = (id) => update((l) => ({ ...l, hidden: l.hidden.includes(id) ? l.hidden.filter((h) => h !== id) : [...l.hidden, id] }));
+  const resetLayout = () => update(() => ({ order: [], hidden: [], widths: {} }));
+
+  // a dragged width wins over the field's default width class
+  const widthOf = (f) => (widths[f.key] ? 'w-full' : f.width || (f.type === 'date' ? 'w-32' : f.type === 'enum' ? 'w-40' : f.type === 'long' ? 'w-80' : 'w-44'));
+  const colStyle = (id) => (widths[id] ? { width: widths[id], minWidth: widths[id], maxWidth: widths[id] } : undefined);
+  const dragProps = (id) =>
+    custom
+      ? {
+          draggable: true,
+          onDragStart: (e) => {
+            if (document.body.dataset.colResize) return e.preventDefault();
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', id);
+            setDrag({ id, over: null });
+          },
+          onDragOver: (e) => {
+            if (!drag.id || drag.id === id) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (drag.over !== id) setDrag((d) => ({ ...d, over: id }));
+          },
+          onDrop: (e) => {
+            e.preventDefault();
+            if (drag.id && drag.id !== id) moveColumn(drag.id, id);
+            setDrag({ id: null, over: null });
+          },
+          onDragEnd: () => setDrag({ id: null, over: null }),
+        }
+      : {};
+
+  const head = (id) => {
+    const f = fieldsByKey[id];
+    const className = cn(
+      'relative',
+      id === stickyId && STICKY_HEAD,
+      id === stickyId && !widths[id] && 'min-w-36',
+      id === ACTIONS && 'w-24',
+      id === ACTIONS && !front && 'text-right',
+      widths[id] && 'overflow-hidden',
+      custom && 'cursor-grab active:cursor-grabbing',
+      drag.id === id && 'opacity-50',
+      drag.over === id && 'shadow-[inset_2px_0_0_var(--primary)]',
+    );
+    const handle = custom ? <ResizeHandle column={id} onResize={setWidth} /> : null;
+    const props = { className, style: colStyle(id), ...dragProps(id) };
+    if (f?.sort) {
+      return (
+        <SortableHead key={id} {...props} label={f.label} column={f.key} sort={sort} dir={dir} onSort={onSort}>
+          {handle}
+        </SortableHead>
+      );
+    }
+    return (
+      <TableHead key={id} {...props} className={cn('whitespace-nowrap', className)}>
+        {labelOf(id)}
+        {handle}
+      </TableHead>
+    );
+  };
+
+  const skeletonCell = (id) => (
+    <TableCell key={id} className={id === stickyId ? STICKY_CELL : undefined} style={colStyle(id)}>
+      <Skeleton className={cn('h-4', id === ACTIONS ? 'h-8 w-16' : id === stickyId ? 'w-28' : 'w-20', id === ACTIONS && !front && 'ml-auto')} />
     </TableCell>
   );
-  const skeletonActions = (
-    <TableCell>
-      <Skeleton className={cn('h-8 w-16', !front && 'ml-auto')} />
-    </TableCell>
-  );
-  return (
+
+  const bodyCell = (id, item) => {
+    const style = colStyle(id);
+    const clip = widths[id] && 'overflow-hidden';
+    if (id === ACTIONS) {
+      return (
+        <TableCell key={id} className={cn('align-top', !front && 'text-right', clip)} style={style}>
+          <RowActions workspace={ws} item={item} options={filterValues} tabs={tabs} start={front} />
+        </TableCell>
+      );
+    }
+    if (id === TAB) {
+      return (
+        <TableCell key={id} className={cn('text-sm text-muted-foreground', clip)} style={style}>
+          {item.tab || 'CRM'}
+        </TableCell>
+      );
+    }
+    const f = fieldsByKey[id];
+    if (id === stickyId) {
+      return (
+        <TableCell key={id} className={cn(STICKY_CELL, !widths[id] && 'min-w-36', 'font-medium', clip)} style={style}>
+          <div className="flex items-center gap-1.5">
+            <div className={cn('min-w-0', widthOf(f))}>
+              <Cell workspace={ws} field={f} item={item} options={filterValues[f.key]} />
+            </div>
+            <MissingBadge item={item} />
+          </div>
+        </TableCell>
+      );
+    }
+    return (
+      <TableCell key={id} className={cn('align-top', clip)} style={style}>
+        <div className={cn('min-w-0', widthOf(f))}>
+          <Cell workspace={ws} field={f} item={item} options={filterValues[f.key]} />
+        </div>
+      </TableCell>
+    );
+  };
+
+  const table = (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
       <Table className="w-max min-w-full">
         <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            {front ? actionsHead : null}
-            {first.sort ? <SortableHead label={first.label} column={first.key} sort={sort} dir={dir} onSort={onSort} className={cn(STICKY_HEAD, 'min-w-36')} /> : <TableHead className={cn(STICKY_HEAD, 'min-w-36')}>{first.label}</TableHead>}
-            {rest.map((f) => (f.sort ? <SortableHead key={f.key} label={f.label} column={f.key} sort={sort} dir={dir} onSort={onSort} /> : <TableHead key={f.key} className="whitespace-nowrap">{f.label}</TableHead>))}
-            {showTab ? <TableHead>{ws.tabLabel || 'Tab'}</TableHead> : null}
-            {front ? null : actionsHead}
-          </TableRow>
+          <TableRow className="hover:bg-transparent">{columns.map(head)}</TableRow>
         </TableHeader>
         <TableBody>
           {loading
             ? Array.from({ length: 8 }, (_, i) => (
                 <TableRow key={i} className="group/row">
-                  {front ? skeletonActions : null}
-                  <TableCell className={STICKY_CELL}>
-                    <Skeleton className="h-4 w-28" />
-                  </TableCell>
-                  {rest.map((f) => (
-                    <TableCell key={f.key}>
-                      <Skeleton className="h-4 w-20" />
-                    </TableCell>
-                  ))}
-                  {showTab ? <TableCell /> : null}
-                  {front ? null : skeletonActions}
+                  {columns.map(skeletonCell)}
                 </TableRow>
               ))
             : items.map((item) => (
                 <TableRow key={item._id} className="group/row">
-                  {front ? actionsCell(item) : null}
-                  <TableCell className={cn(STICKY_CELL, 'min-w-36 font-medium')}>
-                    <div className="flex items-center gap-1.5">
-                      <div className={cn('min-w-0', widthOf(first))}>
-                        <Cell workspace={ws} field={first} item={item} options={filterValues[first.key]} />
-                      </div>
-                      <MissingBadge item={item} />
-                    </div>
-                  </TableCell>
-                  {rest.map((f) => (
-                    <TableCell key={f.key} className="align-top">
-                      <div className={cn('min-w-0', widthOf(f))}>
-                        <Cell workspace={ws} field={f} item={item} options={filterValues[f.key]} />
-                      </div>
-                    </TableCell>
-                  ))}
-                  {showTab ? <TableCell className="text-sm text-muted-foreground">{item.tab || 'CRM'}</TableCell> : null}
-                  {front ? null : actionsCell(item)}
+                  {columns.map((id) => bodyCell(id, item))}
                 </TableRow>
               ))}
         </TableBody>
       </Table>
+    </div>
+  );
+  if (!custom) return table;
+
+  const changed = layout.order.length || layout.hidden.length || Object.keys(widths).length;
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+        <p className="text-xs text-muted-foreground">Drag a header to move a column, its edge to resize it.</p>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Columns3 /> Columns{order.length > columns.length ? ` (${order.length - columns.length} hidden)` : ''}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-96 w-60 overflow-y-auto">
+            <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+            {order
+              .filter((id) => id !== ACTIONS)
+              .map((id) => (
+                <DropdownMenuCheckboxItem key={id} checked={!layout.hidden.includes(id)} onCheckedChange={() => toggleColumn(id)} onSelect={(e) => e.preventDefault()}>
+                  {labelOf(id)}
+                </DropdownMenuCheckboxItem>
+              ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={!changed} onSelect={resetLayout}>
+              <RotateCcw /> Reset layout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {table}
     </div>
   );
 }
