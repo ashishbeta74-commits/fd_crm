@@ -117,34 +117,49 @@ export async function personFeed(from, to, userId, limit = 200) {
 }
 
 /**
- * Status changes made on Client Reach Out / Reservations (models/WorkspaceEvent.js), per person:
- * { <workspace>: { total, byStatus: { <new status>: n }, byType: { Call | Email | Text: n } } }.
+ * Status / reach-out type changes made on Client Reach Out / Reservations (models/WorkspaceEvent.js), per person:
+ * { <workspace>: { total (changes), rows (distinct rows worked), byStatus: { <new status>: changes },
+ *   byType: { Call | Email | Text: distinct rows } } }, plus `worked`: distinct rows over both pages.
  */
 export async function workspaceCounts(from, to, userId = null) {
   const rows = await WorkspaceEvent.aggregate([
     { $match: { at: { $gte: dayRange(from).start, $lt: dayRange(to).end }, byId: userId || { $ne: null } } },
-    { $group: { _id: { by: '$byId', ws: '$workspace', to: '$to', type: '$reachType' }, n: { $sum: 1 } } },
+    { $project: { byId: 1, workspace: 1, rowId: 1, reachType: 1, status: { $cond: [{ $eq: ['$kind', 'type'] }, null, '$to'] } } },
   ]);
+  const people = new Map();
+  for (const e of rows) {
+    const p = people.get(String(e.byId)) || {};
+    people.set(String(e.byId), p);
+    const w = (p[e.workspace] ||= { total: 0, rows: new Set(), byStatus: {}, byType: {} });
+    w.total += 1;
+    w.rows.add(String(e.rowId));
+    if (e.status !== null) w.byStatus[e.status || 'Not set'] = (w.byStatus[e.status || 'Not set'] || 0) + 1;
+    if (e.reachType) (w.byType[e.reachType] ||= new Set()).add(String(e.rowId));
+  }
   const out = new Map();
-  for (const { _id: g, n } of rows) {
-    if (!out.has(String(g.by))) out.set(String(g.by), {});
-    const p = out.get(String(g.by));
-    const w = (p[g.ws] ||= { total: 0, byStatus: {}, byType: {} });
-    const status = g.to || 'Not set';
-    w.total += n;
-    w.byStatus[status] = (w.byStatus[status] || 0) + n;
-    if (g.type) w.byType[g.type] = (w.byType[g.type] || 0) + n;
+  for (const [by, p] of people) {
+    const shaped = { worked: 0 };
+    for (const [ws, w] of Object.entries(p)) {
+      shaped.worked += w.rows.size;
+      shaped[ws] = { total: w.total, rows: w.rows.size, byStatus: w.byStatus, byType: Object.fromEntries(Object.entries(w.byType).map(([t, s]) => [t, s.size])) };
+    }
+    out.set(by, shaped);
   }
   return out;
 }
 
-/** The person's status changes on those pages, newest first. */
+/** The person's status / reach-out type changes on those pages, newest first. */
 function workspaceFeed(from, to, userId, limit = 200) {
   return WorkspaceEvent.find({ byId: userId, at: { $gte: dayRange(from).start, $lt: dayRange(to).end } })
     .sort({ at: -1 })
     .limit(limit)
-    .select('-_id workspace rowId label from to reachType at')
+    .select('-_id workspace rowId kind label from to reachType at')
     .lean();
+}
+
+/** A person's contact counts with their Client Reach Out / Reservations rows added to "worked". */
+function withWorkspaces(counts = emptyRow(), { worked = 0, ...workspaces } = {}) {
+  return { ...counts, worked: counts.worked + worked, workspaces };
 }
 
 /** The whole team (active accounts), each with their counts - zero rows included so nobody is missing. */
@@ -152,11 +167,12 @@ export async function teamBoard(from, to) {
   const [users, counts, wsCounts] = await Promise.all([User.find({}).select('displayName username userId role active').sort({ userId: 1 }).lean(), peopleCounts(from, to), workspaceCounts(from, to)]);
   return users
     .filter((u) => u.active || counts.has(String(u._id)) || wsCounts.has(String(u._id)))
-    .map((u) => ({ id: String(u._id), name: u.displayName || u.username, userId: u.userId, ...(counts.get(String(u._id)) || emptyRow()), workspaces: wsCounts.get(String(u._id)) || {} }));
+    .map((u) => ({ id: String(u._id), name: u.displayName || u.username, userId: u.userId, ...withWorkspaces(counts.get(String(u._id)), wsCounts.get(String(u._id))) }));
 }
 
 export async function personSummary(from, to, userId) {
   const id = new mongoose.Types.ObjectId(String(userId));
   const [counts, feed, wsCounts, wsFeed] = await Promise.all([peopleCounts(from, to, id), personFeed(from, to, id), workspaceCounts(from, to, id), workspaceFeed(from, to, id)]);
-  return { counts: counts.get(String(id)) || emptyRow(), feed, workspaces: wsCounts.get(String(id)) || {}, workspaceFeed: wsFeed };
+  const { workspaces, ...c } = withWorkspaces(counts.get(String(id)), wsCounts.get(String(id)));
+  return { counts: c, feed, workspaces, workspaceFeed: wsFeed };
 }

@@ -279,6 +279,7 @@ export const api = {
     create: (key, body) => request(`/workspaces/${key}`, { method: 'POST', body }),
     update: (key, id, body) => request(`/workspaces/${key}/${id}`, { method: 'PATCH', body }),
     remove: (key, id) => request(`/workspaces/${key}/${id}`, { method: 'DELETE' }),
+    removeMany: (key, ids) => request(`/workspaces/${key}/bulk-delete`, { method: 'POST', body: { ids } }),
     sync: (key) => request(`/workspaces/${key}/sync`, { method: 'POST', body: {} }),
     setSheet: (key, body) => request(`/workspaces/${key}/sheet`, { method: 'PUT', body }),
     exportUrl: (key, params) => `${BASE}/workspaces/${key}/export${toQuery(params)}`,

@@ -228,6 +228,7 @@ One CRM page per Google Sheet of non-contact rows, configured in `server/src/wor
 - `GET /api/workspaces/:key/meta` → `{ workspace: config, tabs: [{ tab, count }], filters: { <field>: [{ value, count }] }, status: [{ value, count }], counts: { total, addedHere, missing, value }, sheet: { url, spreadsheetId, gid, tabs, lastSyncedAt, lastResult, lastError, lastCounts, lastTabs }, autoSync }`.
 - `GET /api/workspaces/:key/export?…same params…` → .xlsx with the fields as columns + Tab.
 - `POST /api/workspaces/:key` (201) / `PATCH /api/workspaces/:key/:id` / `DELETE /api/workspaces/:key/:id` – body `{ <fieldKey>: text }` (dates as ISO, '' clears; numbers parsed; unknown keys rejected). A created row has `source: 'crm'`.
+- `POST /api/workspaces/:key/bulk-delete` – body `{ ids: [rowId] }` (1-1000) → `{ deleted }`. The ticked rows on Client Reach Out / Reservations; ids from another workspace are ignored.
 - `POST /api/workspaces/:key/sync` → `{ unchanged, tabs, total, created, updated, removed, kept, sheet }` – same three-way merge as the Email Evaluation sync. Tabs: the ones saved in the settings, else the tab the link's gid points to, else every tab with the identifying columns. Runs 25 s after API start for a workspace with no rows, and every `SHEET_SYNC_MINUTES`.
 - `PUT /api/workspaces/:key/sheet` `{ url, tabs? }` (admin).
 

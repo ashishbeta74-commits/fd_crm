@@ -118,7 +118,7 @@ function Tiles({ counts }) {
       <StatTile label="Not interested" value={moved(counts, 'not_interested')} icon={ThumbsDown} accent="red" caption="moved to Not Interested" />
       <StatTile label="Voice mail" value={moved(counts, 'voicemail')} icon={Voicemail} accent="amber" caption="moved to Voice Mail" />
       <StatTile label="Connected" value={moved(counts, 'connected')} icon={UserCheck} accent="violet" caption="moved to Connected" />
-      <StatTile label="Contacts worked" value={counts.worked} icon={Users} accent="slate" caption="any call, note, email, stage…" />
+      <StatTile label="Contacts worked" value={counts.worked} icon={Users} accent="slate" caption="any call, note, email, stage, reach-out…" />
       <StatTile label="Follow-ups done" value={counts.followUps} icon={CalendarPlus} accent="orange" />
       <StatTile label="Emails sent" value={counts.emails} icon={Mail} accent="pink" />
     </div>
@@ -276,22 +276,22 @@ function WorkspaceActivity({ counts = {}, feed = [] }) {
         Client Reach Out &amp; Reservations
       </h2>
       <div className={TILE_GRID}>
-        <StatTile label="Reach-out updates" value={reach.total} icon={ListChecks} accent="green" caption="status changes on Client Reach Out" />
-        <StatTile label="By call" value={reach.byType.Call || 0} icon={PhoneCall} accent="blue" caption="reach-out type Call" />
-        <StatTile label="By email" value={reach.byType.Email || 0} icon={Mail} accent="pink" caption="reach-out type Email" />
-        <StatTile label="By text" value={reach.byType.Text || 0} icon={MessageSquare} accent="violet" caption="reach-out type Text" />
+        <StatTile label="Reach-out updates" value={reach.total} icon={ListChecks} accent="green" caption="status / type changes on Client Reach Out" />
+        <StatTile label="By call" value={reach.byType.Call || 0} icon={PhoneCall} accent="blue" caption="clients reached by call" />
+        <StatTile label="By email" value={reach.byType.Email || 0} icon={Mail} accent="pink" caption="clients reached by email" />
+        <StatTile label="By text" value={reach.byType.Text || 0} icon={MessageSquare} accent="violet" caption="clients reached by text" />
         <StatTile label="Reservation updates" value={trips.total} icon={CalendarCheck} accent="amber" caption="status changes on Reservations" />
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <WorkspaceFeed feed={feed} className="xl:col-span-3" />
         <SectionCard title="Statuses set" className="xl:col-span-2">
-          {reach.total || trips.total ? (
+          {Object.keys(reach.byStatus).length || Object.keys(trips.byStatus).length ? (
             <div className="grid gap-5">
               {[
                 ['reachout', reach],
                 ['reservations', trips],
               ]
-                .filter(([, w]) => w.total)
+                .filter(([, w]) => Object.keys(w.byStatus).length)
                 .map(([key, w]) => {
                   const rows = Object.entries(w.byStatus).sort((a, b) => b[1] - a[1]);
                   const max = Math.max(1, ...rows.map((r) => r[1]));
@@ -327,7 +327,7 @@ function WorkspaceActivity({ counts = {}, feed = [] }) {
 
 function WorkspaceFeed({ feed, className }) {
   return (
-    <SectionCard title="Status changes" className={className}>
+    <SectionCard title="Status & reach-out type changes" className={className}>
       {feed.length ? (
         <ol className="-my-2 max-h-[32rem] overflow-y-auto">
           {feed.map((e, i) => {
@@ -341,8 +341,9 @@ function WorkspaceFeed({ feed, className }) {
                       <span className="font-normal text-muted-foreground"> · {page.label}</span>
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
+                      {e.kind === 'type' ? 'Reach-out type: ' : null}
                       {e.from || 'Not set'} → <span className="font-medium text-foreground">{e.to || 'Not set'}</span>
-                      {e.reachType ? <span> · by {e.reachType.toLowerCase()}</span> : null}
+                      {e.reachType && e.kind !== 'type' ? <span> · by {e.reachType.toLowerCase()}</span> : null}
                     </p>
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{formatDateTime(e.at)}</span>
@@ -355,7 +356,7 @@ function WorkspaceFeed({ feed, className }) {
       ) : (
         <EmptyState>
           <PhoneOff className="size-5" aria-hidden="true" />
-          No status changes in this period yet
+          No status or reach-out type changes in this period yet
         </EmptyState>
       )}
     </SectionCard>

@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, MoreHorizontal, Pencil, Trash2, TriangleAlert, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { daysFromToday, formatDate } from '@/lib/format';
+import { daysFromToday, formatDate, pluralize } from '@/lib/format';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,7 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { WorkspaceDialog, valueText } from '@/components/workspace/workspace-dialog';
-import { useRemoveRow, useUpdateRow } from '@/components/workspace/use-workspace';
+import { useRemoveRow, useRemoveRows, useUpdateRow } from '@/components/workspace/use-workspace';
+import { useSelection } from '@/components/contacts/list/use-selection';
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;
@@ -332,8 +334,11 @@ function Cell({ workspace: ws, field, item, options }) {
   return <Display field={field} value={item.values?.[field.key]} />;
 }
 
-export function WorkspaceTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, filterValues = {}, showTab = false, tabs = [] }) {
+export function WorkspaceTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, filterValues = {}, showTab = false, tabs = [], selectionScope = null }) {
   const custom = Boolean(ws.resizable);
+  // ticked rows (bulk delete), kept here so a tick re-renders the table only; `selectionScope` (the filters) clears them
+  const ticks = useSelection(selectionScope ?? '');
+  const selection = selectionScope == null ? null : ticks;
   const [layout, update] = useColumnLayout(ws.key, custom);
   const [drag, setDrag] = useState({ id: null, over: null });
   const fieldsByKey = Object.fromEntries(ws.fields.map((f) => [f.key, f]));
@@ -473,22 +478,56 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
     );
   };
 
+  // Ticking a row re-renders the table; reusing the cells (they change with the rows and the layout, not
+  // the ticks) keeps that instant instead of re-rendering every cell's dropdowns.
+  const tabsKey = tabs.join('|');
+  const columnsKey = columns.join('|');
+  const cells = useMemo(
+    () => new Map(items.map((item) => [item._id, columns.map((id) => bodyCell(id, item))])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, columnsKey, widths, filterValues, tabsKey, ws, front, stickyId],
+  );
+  const pageIds = items.map((item) => item._id);
+  const onPage = selection ? pageIds.filter((id) => selection.selected.has(id)).length : 0;
+  const pageChecked = onPage === 0 ? false : onPage === pageIds.length ? true : 'indeterminate';
+
   const table = (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
       <Table className="w-max min-w-full">
         <TableHeader>
-          <TableRow className="hover:bg-transparent">{columns.map(head)}</TableRow>
+          <TableRow className="hover:bg-transparent">
+            {selection ? (
+              <TableHead className="w-10">
+                {/* Radix Checkbox lets incoming props override its data-state, so the tooltip trigger is a wrapper */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex translate-y-[2px]">
+                      <Checkbox checked={pageChecked} onCheckedChange={(v) => selection.toggleMany(pageIds, v === true)} disabled={loading || !pageIds.length} aria-label="Select all on this page" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>Select all on this page</TooltipContent>
+                </Tooltip>
+              </TableHead>
+            ) : null}
+            {columns.map(head)}
+          </TableRow>
         </TableHeader>
         <TableBody>
           {loading
             ? Array.from({ length: 8 }, (_, i) => (
                 <TableRow key={i} className="group/row">
+                  {selection ? <TableCell /> : null}
                   {columns.map(skeletonCell)}
                 </TableRow>
               ))
             : items.map((item) => (
-                <TableRow key={item._id} className="group/row">
-                  {columns.map((id) => bodyCell(id, item))}
+                <TableRow key={item._id} data-state={selection?.selected.has(item._id) ? 'selected' : undefined} className="group/row">
+                  {selection ? (
+                    <TableCell className="align-top">
+                      <Checkbox checked={selection.selected.has(item._id)} onCheckedChange={(v) => selection.toggle(item._id, v === true)} className="mt-1.5" aria-label={`Select this ${ws.rowLabel}`} />
+                    </TableCell>
+                  ) : null}
+                  {cells.get(item._id)}
                 </TableRow>
               ))}
         </TableBody>
@@ -501,6 +540,7 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
   return (
     <div className="grid gap-2">
       <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+        {selection?.ids.length ? <SelectionBar workspace={ws} selection={selection} /> : null}
         <p className="text-xs text-muted-foreground">Drag a header to move a column, its edge to resize it.</p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -525,6 +565,42 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
         </DropdownMenu>
       </div>
       {table}
+    </div>
+  );
+}
+
+/** "3 selected · Delete · Clear" over the table while rows are ticked. */
+function SelectionBar({ workspace: ws, selection }) {
+  const [confirm, setConfirm] = useState(false);
+  const removeMany = useRemoveRows(ws.key);
+  const n = selection.ids.length;
+  return (
+    <div className="mr-auto flex items-center gap-2 rounded-md border bg-accent px-2 py-1 text-sm text-accent-foreground">
+      <span className="font-medium">{n} selected</span>
+      <Button size="sm" variant="destructive" onClick={() => setConfirm(true)}>
+        <Trash2 /> Delete
+      </Button>
+      <Button size="sm" variant="ghost" onClick={selection.clear}>
+        Clear
+      </Button>
+      <ConfirmDialog
+        open={confirm}
+        onOpenChange={setConfirm}
+        title={`Delete ${pluralize(n, ws.rowLabel)}?`}
+        description={ws.hasSheet === false ? 'They are removed from the CRM for good.' : 'They are removed from the CRM only. Rows still in the linked sheet come back on the next sync.'}
+        confirmLabel="Delete"
+        destructive
+        pending={removeMany.isPending}
+        onConfirm={() =>
+          removeMany.mutate(selection.ids, {
+            onSuccess: (r) => {
+              toast.success(`Deleted ${pluralize(r.deleted, ws.rowLabel)}`);
+              selection.clear();
+              setConfirm(false);
+            },
+          })
+        }
+      />
     </div>
   );
 }

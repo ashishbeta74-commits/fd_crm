@@ -32,6 +32,11 @@ export function useRemoveRow(key) {
   return useMutation({ mutationFn: (id) => api.workspaces.remove(key, id), onSuccess: invalidate, onError: showError });
 }
 
+export function useRemoveRows(key) {
+  const invalidate = useInvalidateWorkspace(key);
+  return useMutation({ mutationFn: (ids) => api.workspaces.removeMany(key, ids), onSuccess: invalidate, onError: showError });
+}
+
 export function useSyncSheet(key) {
   const invalidate = useInvalidateWorkspace(key);
   return useMutation({

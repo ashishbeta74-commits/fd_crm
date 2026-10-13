@@ -240,6 +240,8 @@ export function WorkspaceView({ workspace: key, href }) {
     refetchInterval: livePoll,
   });
   const items = data?.items ?? [];
+  // ticked rows (for bulk delete) survive paging but not a filter change
+  const { page: _page, limit: _limit, ...scope } = params;
   const total = data?.total ?? 0;
   const sort = params.sort || ws?.defaultSort?.field || '';
   const dir = params.dir || (sort === ws?.defaultSort?.field ? ws?.defaultSort?.dir : ws?.fields.find((f) => f.key === sort)?.type === 'date' ? 'desc' : 'asc');
@@ -308,7 +310,7 @@ export function WorkspaceView({ workspace: key, href }) {
           <WorkspaceCards workspace={ws} items={items} dimmed={isPlaceholderData} filterValues={meta.data.filters} tabs={sheetTabs} />
         </div>
         <div className="hidden md:block">
-          <WorkspaceTable workspace={ws} items={items} dimmed={isPlaceholderData} sort={sort} dir={dir} onSort={onSort} filterValues={meta.data.filters} showTab={showTab} tabs={sheetTabs} />
+          <WorkspaceTable workspace={ws} items={items} dimmed={isPlaceholderData} sort={sort} dir={dir} onSort={onSort} filterValues={meta.data.filters} showTab={showTab} tabs={sheetTabs} selectionScope={ws.resizable ? JSON.stringify(scope) : null} />
         </div>
         <Pagination rowLabel={rowLabel} page={data.page} pages={data.pages} limit={data.limit} total={total} count={items.length} onPage={(page) => setParams({ page })} onLimit={(limit) => setParams({ limit })} />
       </div>

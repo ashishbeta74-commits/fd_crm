@@ -2,12 +2,14 @@ import mongoose from 'mongoose';
 
 const { Schema, model } = mongoose;
 
-// A status change made in the CRM on a sheet-workspace row (Client Reach Out, Reservations: the workspaces
+// A status or reach-out type change made in the CRM on a sheet-workspace row (Client Reach Out, Reservations: the workspaces
 // with `activity: true`), for the personal dashboard. Written by PATCH /api/workspaces/:key/:id; sheet
 // syncs and imports write none, so they count for nobody.
 const WorkspaceEventSchema = new Schema({
   workspace: { type: String, required: true },
   rowId: { type: Schema.Types.ObjectId, required: true },
+  // 'status': from / to are statuses; 'type': from / to are reach-out types (Call / Email / Text)
+  kind: { type: String, enum: ['status', 'type'], default: 'status' },
   // the row's name at the time (client / passenger), for the dashboard list
   label: { type: String, default: '' },
   from: { type: String, default: '' },

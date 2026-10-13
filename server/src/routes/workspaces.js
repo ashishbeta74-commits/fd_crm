@@ -270,6 +270,7 @@ workspacesRouter.patch('/:key/:id', async (req, res) => {
     values[sdf.key] = typedValue(sdf, new Date().toLocaleDateString('en-CA'));
   }
   const fromStatus = String(doc.values?.[ws.statusField] ?? '');
+  const fromType = String(doc.values?.reachType ?? '');
   doc.values = { ...doc.values, ...values };
   doc.markModified('values');
   doc.rank = rankOf(ws, doc.values);
@@ -279,11 +280,15 @@ workspacesRouter.patch('/:key/:id', async (req, res) => {
   if (tab && tab !== doc.tab && doc.source === 'sheet') throw new HttpError(400, 'This row is already in the sheet; move it there, the next sync follows');
   if (tab && doc.source !== 'sheet') sheetWrite = await fileIntoTab(ws, doc, tab, await getSettings(ws));
   await doc.save();
-  // who changed the status, for "My dashboard"
-  const toStatus = String(doc.values[ws.statusField] ?? '');
-  if (ws.activity && ws.statusField in values && toStatus !== fromStatus) {
+  // who changed the status / reach-out type, for "My dashboard"
+  if (ws.activity) {
     const label = (ws.nameFields || []).map((k) => doc.values[k]).filter(Boolean).join(' ');
-    await WorkspaceEvent.create({ workspace: ws.key, rowId: doc._id, label, from: fromStatus, to: toStatus, reachType: String(doc.values.reachType || ''), byId: req.user?._id || null });
+    const base = { workspace: ws.key, rowId: doc._id, label, reachType: String(doc.values.reachType || ''), byId: req.user?._id || null };
+    const toStatus = String(doc.values[ws.statusField] ?? '');
+    const events = [];
+    if (ws.statusField in values && toStatus !== fromStatus) events.push({ ...base, from: fromStatus, to: toStatus });
+    if ('reachType' in values && base.reachType !== fromType) events.push({ ...base, kind: 'type', from: fromType, to: base.reachType });
+    if (events.length) await WorkspaceEvent.insertMany(events);
   }
   const out = doc.toObject();
   delete out.sheet;
@@ -294,6 +299,13 @@ workspacesRouter.delete('/:key/:id', async (req, res) => {
   const r = await SheetRow.findOneAndDelete({ _id: req.params.id, workspace: req.ws.key });
   if (!r) throw new HttpError(404, 'Row not found');
   res.json({ ok: true });
+});
+
+// Delete the rows ticked in the table.
+workspacesRouter.post('/:key/bulk-delete', async (req, res) => {
+  const { ids } = z.object({ ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(1000) }).parse(req.body);
+  const r = await SheetRow.deleteMany({ _id: { $in: ids }, workspace: req.ws.key });
+  res.json({ deleted: r.deletedCount });
 });
 
 // ---------- sheet ----------
