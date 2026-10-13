@@ -29,6 +29,7 @@ const SheetRowSchema = new Schema(
 
 SheetRowSchema.index({ workspace: 1, key: 1 }, { unique: true });
 SheetRowSchema.index({ workspace: 1, 'values.date': -1, _id: -1 });
+SheetRowSchema.index({ workspace: 1, 'values.puDate': -1, _id: -1 }); // reservations (18k+ trips)
 SheetRowSchema.index({ workspace: 1, 'values.status': 1 });
 SheetRowSchema.index({ workspace: 1, tab: 1 });
 SheetRowSchema.index({ workspace: 1, rank: 1 });

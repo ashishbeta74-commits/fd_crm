@@ -1,4 +1,4 @@
-import { Car, ClipboardList, PhoneOutgoing, TrafficCone } from 'lucide-react';
+import { CalendarCheck, Car, ClipboardList, PhoneOutgoing, TrafficCone } from 'lucide-react';
 
 // Sheet workspaces shown in the sidebar. The key must match an entry in server/src/workspaces.js;
 // the page at /<href> renders <WorkspaceView workspace={key} /> and everything else comes from the API.
@@ -7,4 +7,5 @@ export const WORKSPACE_NAV = [
   { key: 'violations', href: '/violations', label: 'Vehicle Violations', icon: TrafficCone, accent: 'text-orange-600 dark:text-orange-400' },
   { key: 'vehicles', href: '/vehicles', label: 'Vehicles', icon: Car, accent: 'text-sky-700 dark:text-sky-400' },
   { key: 'reachout', href: '/reach-out', label: 'Client Reach Out', icon: PhoneOutgoing, accent: 'text-emerald-600 dark:text-emerald-400' },
+  { key: 'reservations', href: '/reservations', label: 'Reservations', icon: CalendarCheck, accent: 'text-violet-600 dark:text-violet-400' },
 ];

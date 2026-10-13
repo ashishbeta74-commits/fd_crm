@@ -38,6 +38,8 @@ const baseQuery = z.object({
   to: z.string().max(20).default(''),
   missing: z.enum(['', 'yes']).default(''),
   tab: z.string().max(500).default(''),
+  // one group of the workspace's `groupBy` (a passenger's trips)
+  g: z.string().max(300).default(''),
   sort: z.string().max(60).default(''),
   dir: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -65,6 +67,7 @@ function buildFilter(ws, p, raw) {
     if (from || to) and.push({ [`values.${dateField}`]: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) } });
   }
   if (p.missing === 'yes') and.push({ missingSince: { $ne: null } });
+  if (p.g && ws.groupBy) and.push({ [`values.${ws.groupBy.field}`]: p.g });
   return { $and: and };
 }
 
@@ -97,6 +100,35 @@ workspacesRouter.get('/:key', async (req, res) => {
       .lean(),
   ]);
   res.json({ items, total, page: p.page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+});
+
+// "Merge duplicates": the filtered rows grouped by the workspace's `groupBy` field - one item per group with
+// its row count, value total, first / last date and the `show` fields of its latest row. Nothing is changed.
+// ?sort=count|value|first|last (default count, desc) + the list's filters and paging.
+workspacesRouter.get('/:key/groups', async (req, res) => {
+  const ws = req.ws;
+  if (!ws.groupBy) throw new HttpError(404, `${ws.label} has no grouped view`);
+  const p = baseQuery.parse(req.query);
+  const limit = PAGE_SIZES.includes(p.limit) ? p.limit : 50;
+  const sort = ['count', 'value', 'first', 'last'].includes(p.sort) ? p.sort : 'count';
+  const date = `$values.${ws.dateField}`;
+  const [r] = await SheetRow.aggregate([
+    { $match: buildFilter(ws, p, req.query) },
+    { $sort: { [`values.${ws.dateField}`]: -1 } },
+    {
+      $group: {
+        _id: `$values.${ws.groupBy.field}`,
+        count: { $sum: 1 },
+        value: ws.valueField ? { $sum: { $cond: [{ $isNumber: `$values.${ws.valueField}` }, `$values.${ws.valueField}`, 0] } } : { $sum: 0 },
+        first: { $min: date },
+        last: { $max: date },
+        values: { $first: Object.fromEntries(ws.groupBy.show.map((k) => [k, `$values.${k}`])) },
+      },
+    },
+    { $facet: { total: [{ $count: 'n' }], items: [{ $sort: { [sort]: p.dir === 'asc' ? 1 : -1, _id: 1 } }, { $skip: (p.page - 1) * limit }, { $limit: limit }] } },
+  ]).allowDiskUse(true);
+  const total = r?.total?.[0]?.n || 0;
+  res.json({ items: (r?.items || []).map(({ _id, ...g }) => ({ key: _id ?? '', ...g })), total, page: p.page, pages: Math.max(1, Math.ceil(total / limit)), limit });
 });
 
 // Filter values in use (with counts), the status tiles, the linked sheet and its last sync.

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, CircleAlert, ClipboardList, DollarSign, ExternalLink, FileSpreadsheet, Loader2, PlusCircle, RefreshCw, SearchX, Settings2, Tag, TriangleAlert } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CircleAlert, ClipboardList, DollarSign, ExternalLink, FileSpreadsheet, Loader2, PlusCircle, RefreshCw, SearchX, Settings2, Tag, TriangleAlert, X } from 'lucide-react';
 import { api, qk } from '@/lib/api';
 import { livePoll } from '@/lib/live';
 import { pluralize, timeAgo } from '@/lib/format';
@@ -16,11 +16,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatTile } from '@/components/dashboard/stat-tile';
 import { WorkspaceDialog } from '@/components/workspace/workspace-dialog';
 import { PAGE_SIZES, WorkspaceToolbar, useWorkspaceParams } from '@/components/workspace/workspace-filters';
-import { WorkspaceCards, WorkspaceTable, toneFor } from '@/components/workspace/workspace-table';
+import { WorkspaceCards, WorkspaceGroupTable, WorkspaceTable, toneFor } from '@/components/workspace/workspace-table';
 import { useSetSheet, useSyncSheet, useWorkspaceMeta } from '@/components/workspace/use-workspace';
 
 const ENTER = 'motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300';
@@ -98,6 +99,8 @@ function SheetBar({ workspaceKey, meta, isPending }) {
       <FileSpreadsheet className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
       {isPending || !sheet ? (
         <Skeleton className="h-4 w-64" />
+      ) : !ws.hasSheet ? (
+        <span className="text-muted-foreground">Imported from files - no linked Google Sheet</span>
       ) : (
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <a href={sheet.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-medium hover:underline">
@@ -121,18 +124,20 @@ function SheetBar({ workspaceKey, meta, isPending }) {
         </div>
       )}
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button size="sm" variant="outline" onClick={() => sync.mutate()} disabled={sync.isPending} aria-busy={sync.isPending || undefined}>
-              <RefreshCw className={cn(sync.isPending && 'animate-spin')} /> {sync.isPending ? 'Reading…' : 'Sync now'}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Re-read the sheet: new rows are added, changed cells updated, edits made here are kept</TooltipContent>
-        </Tooltip>
+        {ws?.hasSheet === false ? null : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="sm" variant="outline" onClick={() => sync.mutate()} disabled={sync.isPending} aria-busy={sync.isPending || undefined}>
+                <RefreshCw className={cn(sync.isPending && 'animate-spin')} /> {sync.isPending ? 'Reading…' : 'Sync now'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Re-read the sheet: new rows are added, changed cells updated, edits made here are kept</TooltipContent>
+          </Tooltip>
+        )}
         <Button size="sm" onClick={() => setDialog('add')} disabled={!ws}>
           <PlusCircle /> Add {ws?.rowLabel || 'row'}
         </Button>
-        {isAdmin ? (
+        {isAdmin && ws?.hasSheet !== false ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button size="icon-sm" variant="ghost" onClick={() => setDialog('sheet')} aria-label="Change the linked sheet">
@@ -226,9 +231,11 @@ export function WorkspaceView({ workspace: key, href }) {
   const { params, setParams, clearFilters, activeCount } = useWorkspaceParams(href);
   const meta = useWorkspaceMeta(key);
   const ws = meta.data?.workspace;
+  // "Merge duplicates": one row per group (a passenger) instead of one per row
+  const grouped = Boolean(params.group);
   const { data, error, isPending, isError, isFetching, isPlaceholderData, refetch } = useQuery({
-    queryKey: qk.workspaceRows(key, params),
-    queryFn: () => api.workspaces.rows(key, params),
+    queryKey: grouped ? qk.workspaceGroups(key, params) : qk.workspaceRows(key, params),
+    queryFn: () => (grouped ? api.workspaces.groups(key, params) : api.workspaces.rows(key, params)),
     placeholderData: keepPreviousData,
     refetchInterval: livePoll,
   });
@@ -237,8 +244,13 @@ export function WorkspaceView({ workspace: key, href }) {
   const sort = params.sort || ws?.defaultSort?.field || '';
   const dir = params.dir || (sort === ws?.defaultSort?.field ? ws?.defaultSort?.dir : ws?.fields.find((f) => f.key === sort)?.type === 'date' ? 'desc' : 'asc');
   const onSort = (column) => setParams({ sort: column, dir: sort === column ? (dir === 'asc' ? 'desc' : 'asc') : ws?.fields.find((f) => f.key === column)?.type === 'date' || column === ws?.defaultSort?.field ? 'desc' : 'asc' });
-  const neverSynced = meta.data && !meta.data.sheet?.lastSyncedAt;
-  const rowLabel = ws?.rowLabel || 'row';
+  const neverSynced = meta.data && ws?.hasSheet !== false && !meta.data.sheet?.lastSyncedAt;
+  const rowLabel = grouped ? ws?.groupBy?.label || 'group' : ws?.rowLabel || 'row';
+  const groupSort = params.sort || 'count';
+  const groupDir = params.dir || 'desc';
+  const onGroupSort = (column) => setParams({ sort: column, dir: groupSort === column && groupDir === 'desc' ? 'asc' : 'desc' });
+  const setGrouped = (on) => setParams({ group: on ? '1' : '', g: '', sort: '', dir: '' });
+  const openGroup = (g) => setParams({ group: '', g: g.key, sort: '', dir: '' });
   const showTab = (meta.data?.tabs || []).length > 1;
   // the sheet's tabs, for filing a row added here into one of them
   const sheetTabs = meta.data?.sheet?.lastTabs?.length ? meta.data.sheet.lastTabs : (meta.data?.tabs || []).map((t) => t.tab).filter(Boolean);
@@ -282,6 +294,13 @@ export function WorkspaceView({ workspace: key, href }) {
         ) : null}
       </div>
     );
+  } else if (grouped) {
+    content = (
+      <div className={cn('grid grid-cols-1 gap-4', ENTER)}>
+        <WorkspaceGroupTable workspace={ws} items={items} dimmed={isPlaceholderData} sort={groupSort} dir={groupDir} onSort={onGroupSort} onOpen={openGroup} />
+        <Pagination rowLabel={rowLabel} page={data.page} pages={data.pages} limit={data.limit} total={total} count={items.length} onPage={(page) => setParams({ page })} onLimit={(limit) => setParams({ limit })} />
+      </div>
+    );
   } else {
     content = (
       <div className={cn('grid grid-cols-1 gap-4', ENTER)}>
@@ -306,8 +325,23 @@ export function WorkspaceView({ workspace: key, href }) {
         <p className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
           <span>{isPending ? 'Loading…' : `${pluralize(total, rowLabel)}${activeCount ? ' match' : ''}`}</span>
           {isFetching && !isPending ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
+          {params.g ? (
+            <span className="inline-flex items-center gap-1 rounded-md border bg-accent px-2 py-0.5 text-xs text-accent-foreground">
+              {ws?.groupBy?.label || 'group'}: {params.g}
+              <button type="button" onClick={() => setGrouped(true)} className="rounded-sm hover:bg-muted" aria-label="Back to the merged list">
+                <X className="size-3" />
+              </button>
+            </span>
+          ) : null}
         </p>
-        {inlineFields.length ? <p className="text-xs text-muted-foreground">Click a cell to edit it in place{inlineFields.some((f) => f.type === 'enum') ? '; statuses are dropdowns' : ''}.</p> : null}
+        {ws?.groupBy ? (
+          <label className="flex items-center gap-2 text-sm">
+            <Switch checked={grouped} onCheckedChange={setGrouped} />
+            Merge duplicates
+            <span className="text-xs text-muted-foreground">(one row per {ws.groupBy.label})</span>
+          </label>
+        ) : null}
+        {inlineFields.length && !grouped && !ws?.groupBy ? <p className="text-xs text-muted-foreground">Click a cell to edit it in place{inlineFields.some((f) => f.type === 'enum') ? '; statuses are dropdowns' : ''}.</p> : null}
       </div>
       {content}
     </div>

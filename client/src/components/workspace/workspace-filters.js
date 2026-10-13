@@ -18,7 +18,7 @@ const oneOf = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);
 
 /** Every query-string key that is a filter (search, date range, tab, missing, and the per-field `f.<key>` ones). */
 export function filterKeys(params) {
-  return Object.keys(params).filter((k) => k === 'q' || k === 'from' || k === 'to' || k === 'tab' || k === 'missing' || k.startsWith('f.'));
+  return Object.keys(params).filter((k) => k === 'q' || k === 'from' || k === 'to' || k === 'tab' || k === 'missing' || k === 'g' || k.startsWith('f.'));
 }
 
 export function parseParams(sp) {
@@ -33,6 +33,9 @@ export function parseParams(sp) {
     to: get('to'),
     tab: get('tab'),
     missing: oneOf(get('missing'), ['yes'], ''),
+    // "Merge duplicates" on (one row per group), and one group's rows (a passenger's trips)
+    group: oneOf(get('group'), ['1'], ''),
+    g: get('g'),
     page: page > 0 ? page : 1,
     limit: PAGE_SIZES.includes(limit) ? limit : DEFAULTS.limit,
     sort: get('sort'),
@@ -158,7 +161,7 @@ export function WorkspaceToolbar({ workspace, meta, params, setParams, clearFilt
         const options = inUse.map((o) => ({ key: o.value || 'none', label: o.value || 'Not set', count: o.count }));
         return <MultiFilter key={f.key} label={f.label} options={options} value={params[`f.${f.key}`] || ''} onChange={(v) => setParams({ [`f.${f.key}`]: v })} />;
       })}
-      {tabOptions.length > 1 ? <MultiFilter label="Tab" options={tabOptions} value={params.tab} onChange={(tab) => setParams({ tab })} /> : null}
+      {tabOptions.length > 1 ? <MultiFilter label={ws?.tabLabel || 'Tab'} options={tabOptions} value={params.tab} onChange={(tab) => setParams({ tab })} /> : null}
       {dateField ? (
         <div className="flex flex-wrap items-center gap-1.5 rounded-md border px-2 py-1">
           {dateFields.length > 1 ? (

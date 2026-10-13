@@ -249,7 +249,7 @@ export function WorkspaceTable({ workspace: ws, items = [], loading = false, dim
           <TableRow className="hover:bg-transparent">
             {first.sort ? <SortableHead label={first.label} column={first.key} sort={sort} dir={dir} onSort={onSort} className={cn(STICKY_HEAD, 'min-w-36')} /> : <TableHead className={cn(STICKY_HEAD, 'min-w-36')}>{first.label}</TableHead>}
             {rest.map((f) => (f.sort ? <SortableHead key={f.key} label={f.label} column={f.key} sort={sort} dir={dir} onSort={onSort} /> : <TableHead key={f.key} className="whitespace-nowrap">{f.label}</TableHead>))}
-            {showTab ? <TableHead>Tab</TableHead> : null}
+            {showTab ? <TableHead>{ws.tabLabel || 'Tab'}</TableHead> : null}
             <TableHead className="w-24 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -345,5 +345,73 @@ export function WorkspaceCards({ workspace: ws, items = [], loading = false, dim
         </li>
       ))}
     </ul>
+  );
+}
+
+const money = (n) => `$${Math.round(n || 0).toLocaleString('en-US')}`;
+
+/**
+ * "Merge duplicates": one row per group (a passenger) with its row count, value total and first / last date.
+ * Sorts by count / value / first / last; clicking a row opens that group's rows.
+ */
+export function WorkspaceGroupTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, onOpen }) {
+  const show = ws.groupBy.show.map((k) => ws.fields.find((f) => f.key === k)).filter(Boolean);
+  const [first, ...rest] = show;
+  const value = ws.fields.find((f) => f.key === ws.valueField);
+  const stats = [
+    { key: 'count', label: `${ws.rowLabel[0].toUpperCase()}${ws.rowLabel.slice(1)}s`, render: (g) => g.count.toLocaleString('en-US') },
+    ...(value ? [{ key: 'value', label: value.label, render: (g) => money(g.value) }] : []),
+    { key: 'first', label: 'First', render: (g) => (g.first ? formatDate(g.first) : <Dash />) },
+    { key: 'last', label: 'Last', render: (g) => (g.last ? formatDate(g.last) : <Dash />) },
+  ];
+  return (
+    <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
+      <Table className="w-max min-w-full">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className={cn(STICKY_HEAD, 'min-w-48')}>{first.label}</TableHead>
+            {rest.map((f) => (
+              <TableHead key={f.key} className="whitespace-nowrap">
+                {f.label}
+              </TableHead>
+            ))}
+            {stats.map((s) => (
+              <SortableHead key={s.key} label={s.label} column={s.key} sort={sort} dir={dir} onSort={onSort} />
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading
+            ? Array.from({ length: 8 }, (_, i) => (
+                <TableRow key={i} className="group/row">
+                  {[first, ...rest, ...stats].map((c) => (
+                    <TableCell key={c.key} className={c === first ? STICKY_CELL : undefined}>
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            : items.map((g) => (
+                <TableRow key={g.key} className="group/row cursor-pointer" onClick={() => onOpen(g)}>
+                  <TableCell className={cn(STICKY_CELL, 'min-w-48 font-medium')}>
+                    <button type="button" className="text-left hover:underline" onClick={(e) => (e.stopPropagation(), onOpen(g))}>
+                      {g.values?.[first.key] || g.key || 'Unknown'}
+                    </button>
+                  </TableCell>
+                  {rest.map((f) => (
+                    <TableCell key={f.key} className="max-w-64 truncate text-sm">
+                      {g.values?.[f.key] || <Dash />}
+                    </TableCell>
+                  ))}
+                  {stats.map((s) => (
+                    <TableCell key={s.key} className="text-sm tabular-nums">
+                      {s.render(g)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

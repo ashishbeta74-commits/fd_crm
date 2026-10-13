@@ -92,13 +92,14 @@ const isBlank = (ws, text) => (ws.requires || []).some((k) => !text[k]) || (!(ws
 export async function getSettings(ws) {
   const doc = await Setting.findOne({ key: settingKey(ws) }).lean();
   const v = doc?.value || {};
-  const url = v.url || ws.sheet.url;
-  const parsed = parseSheetUrl(url) || parseSheetUrl(ws.sheet.url);
+  // a workspace without a sheet (rows imported from files) has no link
+  const url = v.url || ws.sheet?.url || '';
+  const parsed = parseSheetUrl(url) || parseSheetUrl(ws.sheet?.url || '') || { spreadsheetId: '', gid: '' };
   return {
     url,
     spreadsheetId: parsed.spreadsheetId,
     gid: parsed.gid,
-    tabs: Array.isArray(v.tabs) ? v.tabs : ws.sheet.tabs || [],
+    tabs: Array.isArray(v.tabs) ? v.tabs : ws.sheet?.tabs || [],
     lastSyncedAt: v.lastSyncedAt || null,
     lastResult: v.lastResult || '',
     lastError: v.lastError || '',
@@ -162,6 +163,7 @@ export function rowKey(ws, tab, rowNumber, text) {
  */
 export async function syncWorkspace(ws, { force = true, log = console.log } = {}) {
   const settings = await getSettings(ws);
+  if (!settings.spreadsheetId) throw new HttpError(400, `${ws.label} has no linked sheet to read`);
   let loaded;
   try {
     loaded = await loadSheetByLink(settings.spreadsheetId, settings.gid);
@@ -279,7 +281,7 @@ const SYNC_MINUTES = Number(process.env.SHEET_SYNC_MINUTES) || 0;
 const running = new Set();
 
 async function tick(ws, opts) {
-  if (running.has(ws.key)) return;
+  if (!ws.sheet || running.has(ws.key)) return;
   running.add(ws.key);
   try {
     await syncWorkspace(ws, opts);

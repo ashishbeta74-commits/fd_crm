@@ -183,7 +183,49 @@ WORKSPACES.push({
   ],
 });
 
-export const WORKSPACE_MAP =Object.fromEntries(WORKSPACES.map((w) => [w.key, w]));
+// ---- Reservations: Limo Anywhere "Reservations By Customer Summary" exports, one tab per year ----
+// No linked sheet: rows come from the exported files (server/scripts/import-reservations.js), keyed by Conf#.
+WORKSPACES.push({
+  key: 'reservations',
+  label: 'Reservations',
+  description: 'Every trip from the Limo Anywhere reservation exports, one tab per year: pickup, passenger, company, routing, driver and car, status, payment and trip total.',
+  rowLabel: 'trip',
+  sheet: null,
+  // the tabs are years ("2026", "2025", ...)
+  tabLabel: 'Year',
+  keyField: 'confNo',
+  dateField: 'puDate',
+  statusField: 'status',
+  valueField: 'tripTotal',
+  defaultSort: { field: 'puDate', dir: 'desc' },
+  // "Merge duplicates": one row per passenger (paxKey = the name; the export's email is often the booker's), with
+  // trip count, total, first and last trip
+  groupBy: { field: 'paxKey', label: 'passenger', show: ['passenger', 'passengerEmail', 'company', 'accountNo'] },
+  fields: [
+    { key: 'confNo', label: 'Conf #', headers: ['conf', 'confno', 'confirmation'], type: 'text', search: true, sort: true, width: 'w-24' },
+    { key: 'puDate', label: 'Pickup date', headers: ['pudate', 'pickupdate'], type: 'date', sort: true },
+    { key: 'puTime', label: 'Time', headers: ['putime', 'pickuptime'], type: 'text', width: 'w-24' },
+    // the export's first + last name, joined by the import
+    { key: 'passenger', label: 'Passenger', headers: ['passenger', 'passengername'], type: 'text', search: true, sort: true, inline: true, width: 'w-44' },
+    { key: 'passengerEmail', label: 'Email', headers: ['passengeremail', 'email'], type: 'email', search: true, inline: true, width: 'w-56' },
+    { key: 'company', label: 'Company', headers: ['company', 'companyname'], type: 'text', filter: true, search: true, sort: true, inline: true, width: 'w-44' },
+    { key: 'accountNo', label: 'Account #', headers: ['account', 'accountno'], type: 'text', search: true, width: 'w-24' },
+    { key: 'bookingContact', label: 'Booked by', headers: ['bookingcontact'], type: 'text', search: true, width: 'w-36' },
+    { key: 'type', label: 'Type', headers: ['type'], type: 'enum', filter: true, options: ['INH', 'FIN', 'FOT'], width: 'w-20' },
+    { key: 'serviceType', label: 'Service', headers: ['servicetype'], type: 'text', filter: true, width: 'w-36' },
+    { key: 'vehicleType', label: 'Vehicle', headers: ['vehicletype'], type: 'text', filter: true, width: 'w-32' },
+    { key: 'car', label: 'Car', headers: ['car'], type: 'text', search: true, width: 'w-44' },
+    { key: 'driver', label: 'Driver', headers: ['driver'], type: 'text', filter: true, search: true, width: 'w-36' },
+    { key: 'routing', label: 'Routing', headers: ['routingdetails', 'routing'], type: 'long', search: true, width: 'w-80' },
+    { key: 'pax', label: 'Pax', headers: ['pax', 'paxno'], type: 'number', width: 'w-16' },
+    { key: 'status', label: 'Status', headers: ['status'], type: 'enum', filter: true, sort: true, inline: true, options: ['Drop', 'Confirmed', 'Pending', 'Offered', 'Unassigned', 'On location', 'No Show', 'Late Cancel', 'Cancelled', 'Cancelled by Affiliate'], width: 'w-32' },
+    { key: 'pmtStatus', label: 'Payment', headers: ['pmtstatus', 'paymentstatus'], type: 'enum', filter: true, inline: true, options: ['PAID', 'BILLED', 'UNPAID'], width: 'w-24' },
+    { key: 'tripTotal', label: 'Trip total', headers: ['triptotal', 'total'], type: 'number', sort: true, width: 'w-24' },
+    { key: 'paxKey', label: 'Passenger key', headers: [], type: 'text', hide: true },
+  ],
+});
+
+export const WORKSPACE_MAP = Object.fromEntries(WORKSPACES.map((w) => [w.key, w]));
 export const getWorkspace = (key) => WORKSPACE_MAP[key] || null;
 
 /** What the web app needs to render a workspace (everything but the sheet link, which the meta endpoint carries). */
@@ -198,6 +240,9 @@ export const publicWorkspace = (w) => ({
   valueField: w.valueField || '',
   defaultSort: w.defaultSort,
   rankBy: w.rankBy ? { field: w.rankBy.field, groups: w.rankBy.groups.length } : null,
+  hasSheet: Boolean(w.sheet),
+  tabLabel: w.tabLabel || 'Tab',
+  groupBy: w.groupBy || null,
   fields: w.fields.map(({ headers, ...f }) => f),
 });
 

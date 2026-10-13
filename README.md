@@ -165,6 +165,12 @@ names, battery and oil-change dates with mileage, service notes). Expiry dates s
 account number, name, phones, company, email, account type / status / terms, city / state / zip, internal and trip notes, country,
 and last activity (merged in from the Last_Activity_Passengers export by email / phone; passengers not already listed were added as
 CRM rows).
+
+**Reservations** (`/reservations`) holds the Limo Anywhere "Reservations By Customer Summary" exports, one Year tab per file (one row
+per trip: conf #, pickup, passenger, company, routing, driver and car, status, payment, trip total). It has no linked sheet: load or
+refresh exports with `node --env-file=.env scripts/import-reservations.js <file.xlsx> ...` (keyed by conf #; trips edited in the
+CRM are kept). "Merge duplicates" switches to one row per passenger (matched by name - the export's email is often the booker's) with
+trip count, total and first / last trip; clicking one lists that passenger's trips. Nothing is merged in the data.
 Changing a status in the CRM sets the status date to today (`statusDateField` in the config) unless the same edit sets the date.
 
 Each workspace is one entry in `server/src/workspaces.js` (fields, the sheet headers that feed them, the key column, which fields
