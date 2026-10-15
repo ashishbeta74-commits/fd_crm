@@ -127,8 +127,9 @@ The page's top shows the workbook's Dashboard numbers for a period (by date foll
 acceptance rate, replies and reply rate, needs, offers, trial rides, clients won and win rate, won / open monthly value, overdue and
 due-this-week actions, no-next-action and not-yet-followed counts. Filters cover group, stage, persona, connection status,
 priority, action flag and list; bulk actions log a step, set a persona or park/close many prospects; *Export* downloads the view in the
-workbook's Data-tab layout. The **Playbook** tab holds the 12 steps with what to do, what to say (copy button), what to log and what
-to watch out for, plus the daily rhythm and guardrails.
+workbook's Data-tab layout. The **Playbook** tab holds the outreach playbook (Famous_Drive_LinkedIn_Outreach_Playbook.docx): seven stages
+to a 10-15 minute meeting with the Director of Operations, each with its messages (copy button per message), the meeting
+link and the ground rules. The text lives in `server/src/linkedin.js` (`LI_PLAYBOOK`, `LI_RULES`, `LI_MEETING_LINK`).
 
 ### Email Evaluation CRM (the EMAIL EVALUATION sheet)
 

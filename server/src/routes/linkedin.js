@@ -10,6 +10,7 @@ import {
   LI_CONNECTION_KEYS,
   LI_CONNECTION_STATUSES,
   LI_GROUPS,
+  LI_MEETING_LINK,
   LI_NEEDS,
   LI_NEXT_ACTIONS,
   LI_OVERRIDE_KEYS,
@@ -49,6 +50,7 @@ linkedinRouter.get('/meta', async (req, res) => {
     statuses: LI_STATUSES,
     steps: LI_STEPS.map(({ key, label, requires }) => ({ key, label, requires: requires || null })),
     playbook: LI_PLAYBOOK,
+    meetingLink: LI_MEETING_LINK,
     rules: LI_RULES,
   });
 });
