@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useCallback, useMemo, useOptimistic } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useOptimistic } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export const PAGE_SIZES = [25, 50, 100];
@@ -42,7 +42,7 @@ export const SORT_COLUMNS = {
 };
 
 /** Params that narrow the result set (page / limit / sort / dir only shape it). */
-export const FILTER_KEYS = ['q', 'stage', 'stageFrom', 'stageTo', 'leadQuality', 'category', 'company', 'areaCode', 'country', 'state', 'city', 'sheet', 'stars', 'batch', 'tag', 'priority', 'followUp', 'booking'];
+export const FILTER_KEYS = ['q', 'stage', 'stageFrom', 'stageTo', 'leadQuality', 'category', 'company', 'areaCode', 'country', 'state', 'city', 'sheet', 'stars', 'batch', 'tag', 'priority', 'followUp', 'booking', 'by'];
 
 /** Sheet rating filter: "4" = lists rated 4 stars or more. */
 export const STAR_OPTIONS = [
@@ -88,6 +88,8 @@ export function parseListParams(sp) {
     priority: get('priority'),
     followUp: oneOf(get('followUp'), FOLLOW_UP_OPTIONS.map((o) => o.value), ''),
     booking: oneOf(get('booking'), BOOKING_OPTIONS.map((o) => o.value), ''),
+    // team member ids (Person filter)
+    by: /^[a-f\d]{24}(,[a-f\d]{24})*$/.test(get('by')) ? get('by') : '',
     page: page > 0 ? page : DEFAULTS.page,
     limit: PAGE_SIZES.includes(limit) ? limit : DEFAULT_LIMIT,
     sort: oneOf(get('sort'), Object.keys(SORT_COLUMNS), DEFAULT_SORT),
@@ -96,6 +98,18 @@ export function parseListParams(sp) {
 }
 
 export const activeFilters = (params) => FILTER_KEYS.filter((key) => params[key]);
+
+const LIST_KEY = 'contacts:list';
+
+/** The contacts list as last shown in this tab (filters, sort, page), so leaving a profile goes back to it. */
+export function lastListHref() {
+  try {
+    const qs = sessionStorage.getItem(LIST_KEY);
+    return qs ? `/contacts?${qs}` : '/contacts';
+  } catch {
+    return '/contacts';
+  }
+}
 
 /**
  * The list state lives in the URL so links like /contacts?stage=prospect work and the
@@ -110,6 +124,13 @@ export function useContactListParams() {
   // writes on it; it falls back to the real URL when the navigation commits.
   const [sp, setSp] = useOptimistic(searchParams);
   const params = useMemo(() => parseListParams(sp), [sp]);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(LIST_KEY, sp.toString());
+    } catch {
+      /* private mode: the profile's Back link just opens the plain list */
+    }
+  }, [sp]);
 
   const setParams = useCallback(
     (patch) => {

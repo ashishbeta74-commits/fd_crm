@@ -163,6 +163,7 @@ ContactSchema.index({ createdAt: 1, _id: 1 }); // the list's default order
 ContactSchema.index({ lastContactedAt: -1, _id: 1 }); // "calls today" and the last-contact sort
 // Daily progress reports and "recent activity" pick history entries by time.
 ContactSchema.index({ 'activities.at': -1 });
+ContactSchema.index({ 'activities.byId': 1 }); // the list's Person filter
 ContactSchema.index({ 'linkedin.stage': 1 });
 ContactSchema.index({ 'linkedin.nextActionDate': 1 });
 ContactSchema.index({ 'linkedin.lastTouchAt': -1 });

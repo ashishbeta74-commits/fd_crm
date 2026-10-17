@@ -46,6 +46,8 @@ export const listQuery = z.object({
   areaCode: z.string().regex(/^\d{3}(,\d{3})*$/).optional(),
   // sheet rating: "4" = lists rated 4 stars or more, "none" = lists nobody rated yet
   stars: z.enum(['1', '2', '3', '4', '5', 'none']).optional(),
+  // comma list of team member ids: contacts they worked on; with `stage`, the ones they moved into that stage
+  by: z.string().regex(/^[a-f\d]{24}(,[a-f\d]{24})*$/).optional(),
   followUp: z.enum(['any', 'overdue', 'today', 'week', 'none']).optional(),
   booking: z.enum(['any', 'upcoming', 'none']).optional(),
   // "In stage since": contacts that entered their current stage between two New York calendar days (YYYY-MM-DD, inclusive)
@@ -83,6 +85,11 @@ export function buildFilter(q, rated = null) {
     filter.$or = SEARCH_FIELDS.map((f) => ({ [f]: rx }));
   }
   if (q.stage) filter.stage = { $in: csv(q.stage) };
+  // Person: Stage = Prospect + Person = Haroon -> the prospects Haroon made (history entries carry who did them)
+  if (q.by) {
+    const byId = { $in: csv(q.by).map((id) => new mongoose.Types.ObjectId(id)) };
+    filter.activities = { $elemMatch: q.stage ? { byId, toStage: { $in: csv(q.stage) } } : { byId } };
+  }
   if (q.stageFrom || q.stageTo) {
     filter.stageChangedAt = {};
     if (q.stageFrom) filter.stageChangedAt.$gte = localDay(q.stageFrom);

@@ -11,7 +11,7 @@ import { SheetRow } from '../models/SheetRow.js';
 import { Setting } from '../models/User.js';
 import { WORKSPACES, getWorkspace, rankOf } from '../workspaces.js';
 import { valueToText } from './excel.js';
-import { loadSheetByLink, parseSheetUrl, sheetUrl } from './sheetLink.js';
+import { loadSheetByLink, parseSheetUrl, sheetEditCheck, sheetUrl } from './sheetLink.js';
 
 const settingKey = (ws) => `workspace:${ws.key}`;
 // "DATE ( DOUBLE CLICK )" -> "date"; "CLIENT EMAIL ID / Phone No" -> "clientemailidphoneno";
@@ -164,6 +164,11 @@ export function rowKey(ws, tab, rowNumber, text) {
 export async function syncWorkspace(ws, { force = true, log = console.log } = {}) {
   const settings = await getSettings(ws);
   if (!settings.spreadsheetId) throw new HttpError(400, `${ws.label} has no linked sheet to read`);
+  const edit = force ? null : await sheetEditCheck(`ws:${ws.key}`, settings.spreadsheetId);
+  if (edit?.unchanged) {
+    await patchSettings(ws, { lastSyncedAt: new Date(), lastResult: 'unchanged', lastError: '' });
+    return { unchanged: true };
+  }
   let loaded;
   try {
     loaded = await loadSheetByLink(settings.spreadsheetId, settings.gid);
@@ -204,6 +209,7 @@ export async function syncWorkspace(ws, { force = true, log = console.log } = {}
   const now = new Date();
   if (!force && contentHash === settings.contentHash) {
     await patchSettings(ws, { lastSyncedAt: now, lastResult: 'unchanged', lastError: '' });
+    edit?.done();
     return { unchanged: true, tabs: tabNames, total: rows.length };
   }
 
@@ -271,6 +277,7 @@ export async function syncWorkspace(ws, { force = true, log = console.log } = {}
   if (ops.length) await SheetRow.bulkWrite(ops, { ordered: false });
 
   await patchSettings(ws, { lastSyncedAt: now, lastResult: 'synced', lastError: '', lastCounts: counts, lastTabs: tabNames, contentHash });
+  edit?.done();
   log(`[workspace:${ws.key}] synced ${tabNames.join(', ')}: ${counts.created} new, ${counts.updated} updated, ${counts.removed} removed, ${counts.kept} kept (edited here, gone from the sheet)`);
   return { unchanged: false, tabs: tabNames, total: rows.length, ...counts };
 }

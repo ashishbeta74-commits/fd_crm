@@ -3,7 +3,7 @@
 import { Suspense, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { BookOpen, CalendarClock, Copy, LayoutDashboard, Linkedin, Mail, MailCheck, Menu, PanelLeftClose, PanelLeftOpen, Upload, UserRound, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
@@ -12,6 +12,7 @@ import { ReminderBell } from '@/components/reminders/reminder-bell';
 import { MentionBell } from '@/components/mentions/mention-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SidebarViews } from '@/components/views/sidebar-views';
+import { lastListHref } from '@/components/contacts/list/contact-filters';
 import { useAuth } from '@/components/auth/auth-provider';
 import { LoginScreen } from '@/components/auth/login-screen';
 import { UserMenu } from '@/components/auth/user-menu';
@@ -69,6 +70,7 @@ function Foldable({ collapsed, className, children }) {
 
 function NavLinks({ onNavigate, collapsed = false }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user } = useAuth();
   const hidden = user?.hidePages || [];
   return (
@@ -78,7 +80,14 @@ function NavLinks({ onNavigate, collapsed = false }) {
         const link = (
           <Link
             href={href}
-            onClick={onNavigate}
+            onClick={(e) => {
+              // from a profile, "Contacts" goes back to the list with the filters it had
+              if (href === '/contacts' && pathname.startsWith('/contacts/') && !e.metaKey && !e.ctrlKey) {
+                e.preventDefault();
+                router.push(lastListHref());
+              }
+              onNavigate?.();
+            }}
             aria-current={active ? 'page' : undefined}
             aria-label={collapsed ? label : undefined}
             style={{ '--i': i }}

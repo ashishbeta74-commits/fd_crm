@@ -58,6 +58,30 @@ async function fetchExportViaApi(spreadsheetId) {
   return { buffer, fileName };
 }
 
+const lastSeen = new Map(); // caller key -> { modified, at } from its last completed check
+// ponytail: formulas like IMPORTRANGE / NOW() change values without an edit, so a full download still runs hourly.
+const FULL_CHECK_MS = 60 * 60 * 1000;
+
+/**
+ * Cheap "edited since the last check?" for the automatic syncs: one tiny Drive metadata request instead of
+ * downloading and parsing the workbook. Call done() once the check completed, so the next one compares
+ * against it. Without a service account (or when Drive can't see the file) `unchanged` is always false
+ * and the caller falls back to the download + content hash.
+ */
+export async function sheetEditCheck(key, spreadsheetId) {
+  let modified = '';
+  if (isGoogleConfigured()) {
+    try {
+      modified = (await googleFetch(`https://www.googleapis.com/drive/v3/files/${spreadsheetId}?fields=modifiedTime`, { timeoutMs: 15_000 }))?.modifiedTime || '';
+    } catch {
+      /* fall back to the download */
+    }
+  }
+  const prev = lastSeen.get(key);
+  const unchanged = Boolean(modified) && prev?.modified === modified && Date.now() - prev.at < FULL_CHECK_MS;
+  return { unchanged, done: () => modified && lastSeen.set(key, { modified, at: Date.now() }) };
+}
+
 /** Title of the tab whose gid is `gid` (Sheets API), or null when not resolvable. */
 async function tabTitleForGid(spreadsheetId, gid) {
   if (!isGoogleConfigured() || !gid) return null;

@@ -14,7 +14,7 @@ import { isoDate, parseDate } from '../lib/dates.js';
 import { EVAL_FIELDS, EmailEvaluation } from '../models/EmailEvaluation.js';
 import { Setting } from '../models/User.js';
 import { valueToText } from './excel.js';
-import { loadSheetByLink, parseSheetUrl, sheetUrl } from './sheetLink.js';
+import { loadSheetByLink, parseSheetUrl, sheetEditCheck, sheetUrl } from './sheetLink.js';
 
 export const SETTING_KEY = 'emailEvaluation';
 // The sheet the team keeps its email evaluations in (changed from the page by an admin).
@@ -152,6 +152,11 @@ export async function nextRowKey(spreadsheetId, tab, rowNumber, values) {
  */
 export async function syncEmailEvaluations({ force = true, log = console.log } = {}) {
   const settings = await getSettings();
+  const edit = force ? null : await sheetEditCheck('email-evaluation', settings.spreadsheetId);
+  if (edit?.unchanged) {
+    await patchSettings({ lastSyncedAt: new Date(), lastResult: 'unchanged', lastError: '' });
+    return { unchanged: true };
+  }
   let loaded;
   try {
     loaded = await loadSheetByLink(settings.spreadsheetId, settings.gid);
@@ -190,6 +195,7 @@ export async function syncEmailEvaluations({ force = true, log = console.log } =
   const now = new Date();
   if (!force && contentHash === settings.contentHash) {
     await patchSettings({ lastSyncedAt: now, lastResult: 'unchanged', lastError: '' });
+    edit?.done();
     return { unchanged: true, tabs: tabNames, total: rows.length };
   }
 
@@ -253,6 +259,7 @@ export async function syncEmailEvaluations({ force = true, log = console.log } =
   if (ops.length) await EmailEvaluation.bulkWrite(ops, { ordered: false });
 
   await patchSettings({ lastSyncedAt: now, lastResult: 'synced', lastError: '', lastCounts: counts, lastTabs: tabNames, contentHash });
+  edit?.done();
   log(`[email-evaluation] synced ${tabNames.join(', ')}: ${counts.created} new, ${counts.updated} updated, ${counts.removed} removed, ${counts.kept} kept (edited here, gone from the sheet)`);
   return { unchanged: false, tabs: tabNames, total: rows.length, ...counts };
 }

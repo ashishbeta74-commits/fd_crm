@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Bell, BellRing } from 'lucide-react';
 import { api, qk } from '@/lib/api';
-import { pushSupported, subscribePush, unsubscribePush } from '@/lib/push';
+import { NOTIFY_KEY, enableNotifications, unsubscribePush } from '@/lib/push';
 import { formatDateTime, timeAgo } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,6 @@ import { PriorityBadge } from '@/components/badges';
 import { ReminderActions } from '@/components/reminders/reminder-actions';
 
 const POLL_MS = 60_000;
-const NOTIFY_KEY = 'crm:notify';
 
 // The notification preference (localStorage) and the browser permission live outside React;
 // useSyncExternalStore reads them without a hydration mismatch (server snapshot = off / default).
@@ -79,26 +78,17 @@ export function ReminderBell({ className }) {
 
   const [busy, setBusy] = useState(false);
   const toggleNotify = async (on) => {
-    if (on && typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-      const p = await Notification.requestPermission();
-      emitChange();
-      if (p !== 'granted') {
-        toast.error('Notifications are blocked for this site - allow them in the browser\'s site settings');
-        return;
-      }
-    }
     setBusy(true);
     try {
-      // Push = notifications even when the CRM tab is closed. Falls back to in-app notifications when unsupported.
-      if (on && pushSupported()) {
-        await subscribePush();
-        toast.success('Notifications on - you will get reminders even when the app is closed');
-      } else if (!on) {
+      if (!on) {
         await unsubscribePush();
+        localStorage.setItem(NOTIFY_KEY, '0');
       } else {
-        toast.message('Notifications on while the app is open (this browser cannot receive push)');
+        const mode = await enableNotifications();
+        if (mode === 'blocked') toast.error("Notifications are blocked for this site - allow them in the browser's site settings");
+        else if (mode === 'push') toast.success('Notifications on - you will get reminders and tags even when the app is closed');
+        else toast.message('Notifications on while the app is open (this browser cannot receive push)');
       }
-      localStorage.setItem(NOTIFY_KEY, on ? '1' : '0');
     } catch (err) {
       toast.error(err?.message || 'Could not switch notifications on');
     } finally {

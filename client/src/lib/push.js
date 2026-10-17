@@ -43,3 +43,23 @@ export async function hasPushSubscription() {
   const reg = await navigator.serviceWorker.getRegistration('/');
   return Boolean(await reg?.pushManager.getSubscription());
 }
+
+export const NOTIFY_KEY = 'crm:notify';
+
+/**
+ * Ask for permission and subscribe this browser (push = notifications even with the CRM closed).
+ * Returns 'push', 'in-app' (this browser has no push; notifications while the app is open) or 'blocked'.
+ */
+export async function enableNotifications() {
+  if (typeof Notification === 'undefined') return 'blocked';
+  if (Notification.permission !== 'granted' && (await Notification.requestPermission()) !== 'granted') return 'blocked';
+  const mode = pushSupported() ? 'push' : 'in-app';
+  if (mode === 'push') await subscribePush();
+  try {
+    localStorage.setItem(NOTIFY_KEY, '1');
+  } catch {
+    /* the preference just isn't remembered */
+  }
+  window.dispatchEvent(new StorageEvent('storage', { key: NOTIFY_KEY })); // both bells re-read it
+  return mode;
+}

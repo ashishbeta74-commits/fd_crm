@@ -14,6 +14,7 @@ import { AddFollowUpDialog } from '@/components/followups/add-followup-dialog';
 import { ContactActionsMenu } from '@/components/contacts/contact-actions-menu';
 import { ContactDialog } from '@/components/contacts/contact-dialog';
 import { linkedInHref, linkedInLabel } from '@/components/contacts/list/linkedin-link';
+import { lastListHref } from '@/components/contacts/list/contact-filters';
 import { LogCallDialog, NoteDialog } from '@/components/contacts/log-call-dialog';
 import { StageSelect, useStageChange } from '@/components/contacts/stage-controls';
 import { formatDateTime, timeAgo } from '@/lib/format';
@@ -26,8 +27,16 @@ import { TOUCH_SM } from './detail-card';
 const ACTION = cn(TOUCH_SM, 'flex-1 sm:flex-none');
 
 export function BackLink() {
+  const router = useRouter();
+  // back to the list with the filters it had (the href is the plain list so server and client render alike)
+  const onClick = (e) => {
+    const to = lastListHref();
+    if (to === '/contacts' || e.metaKey || e.ctrlKey) return;
+    e.preventDefault();
+    router.push(to);
+  };
   return (
-    <Link href="/contacts" className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+    <Link href="/contacts" onClick={onClick} className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
       <ArrowLeft className="size-4" aria-hidden="true" />
       Back to contacts
     </Link>
@@ -105,7 +114,7 @@ export function DetailHeader({ contact }) {
             <ContactActionsMenu
               contact={contact}
               showOpen={false}
-              onDeleted={() => router.push('/contacts')}
+              onDeleted={() => router.push(lastListHref())}
               trigger={
                 <TooltipTrigger asChild>
                   <Button variant="ghost" size="icon-sm" className="size-9 sm:size-8" aria-label="More actions">

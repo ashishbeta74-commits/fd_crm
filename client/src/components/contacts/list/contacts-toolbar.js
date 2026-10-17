@@ -408,6 +408,16 @@ function AreaCodeFilter({ value, onChange }) {
   return <PlaceFilter label="Area code" icon={Phone} items={items} allowNone={false} prefixSingle value={value} onChange={onChange} />;
 }
 
+/**
+ * Person: contacts a team member worked on. With a Stage picked, the ones they moved into it
+ * (Stage = Prospect + Person = Haroon -> the prospects Haroon made).
+ */
+function PersonFilter({ value, onChange }) {
+  const { data } = useQuery({ queryKey: qk.team, queryFn: api.auth.team, staleTime: 10 * 60_000 });
+  const options = (data?.items || []).map((u) => ({ key: u._id, label: u.displayName || u.username }));
+  return <MultiFilter label="Person" options={options} value={value} onChange={onChange} />;
+}
+
 /** Contacts from lists rated at least N stars (set on the Import page), or from unrated lists. */
 function StarsFilter({ value, onChange }) {
   const { data } = useMeta();
@@ -447,6 +457,7 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
       <SearchInput value={params.q} onCommit={commitSearch} />
       <TypeToggles value={params.category} onChange={(category) => setParams({ category })} />
       <MultiFilter label="Stage" options={STAGE_OPTIONS} value={params.stage} onChange={(stage) => setParams({ stage })} />
+      <PersonFilter value={params.by} onChange={(by) => setParams({ by })} />
       <StageDateFilter from={params.stageFrom} to={params.stageTo} onChange={setParams} />
       <SingleFilter label="Follow-up" options={FOLLOW_UP_OPTIONS} value={params.followUp} onChange={(followUp) => setParams({ followUp })} />
       <Button

@@ -6,7 +6,7 @@ import { ImportBatch } from '../models/ImportBatch.js';
 import { LinkedSheet } from '../models/LinkedSheet.js';
 import { collapseImportHistory, repairStageChangedAt } from '../lib/migrations.js';
 import { HttpError } from '../lib/errors.js';
-import { contentHash, loadSheetByLink, sheetUrl } from './sheetLink.js';
+import { contentHash, loadSheetByLink, sheetEditCheck, sheetUrl } from './sheetLink.js';
 import { runImport } from './importer.js';
 import { suggestMapping } from '../lib/mapping.js';
 import { isMultiField } from '../fields.js';
@@ -120,6 +120,11 @@ export async function resyncBatch(batchOrId, { strategy, updateStage, requirePho
   if (batch.source?.type !== 'google-sheet' || !batch.plans) throw new HttpError(400, 'This import did not come from a Google Sheet link');
 
   const { spreadsheetId, gid } = batch.source;
+  const edit = force ? null : await sheetEditCheck(`sync:${spreadsheetId}`, spreadsheetId);
+  if (edit?.unchanged) {
+    await recordCheck(spreadsheetId, 'unchanged');
+    return { unchanged: true, batch };
+  }
   let loaded;
   try {
     loaded = await loadSheetByLink(spreadsheetId, gid);
@@ -137,6 +142,7 @@ export async function resyncBatch(batchOrId, { strategy, updateStage, requirePho
   if (!force && hash && ((batch.source.contentHash && hash === batch.source.contentHash) || getStatus(spreadsheetId).lastHash === hash)) {
     setStatus(spreadsheetId, { lastHash: hash });
     await recordCheck(spreadsheetId, 'unchanged');
+    edit?.done();
     return { unchanged: true, batch };
   }
   setStatus(spreadsheetId, { lastHash: hash });
@@ -166,6 +172,7 @@ export async function resyncBatch(batchOrId, { strategy, updateStage, requirePho
       resyncOf: batch._id,
     });
     await recordCheck(spreadsheetId, 'synced');
+    edit?.done();
     return result;
   } catch (err) {
     await recordCheck(spreadsheetId, 'error', err.message);
