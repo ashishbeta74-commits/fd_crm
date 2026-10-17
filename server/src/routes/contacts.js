@@ -16,6 +16,7 @@ import { LI_STEPS } from '../linkedin.js';
 import { formatZoned } from '../config/timezone.js';
 import { ImportBatch } from '../models/ImportBatch.js';
 import { appendSheetRow } from '../services/sheetAppend.js';
+import { forgetNotes, notifyNote, validMentions } from '../services/mentions.js';
 
 export const contactsRouter = Router();
 
@@ -271,7 +272,8 @@ async function loadContact(id, { light = false } = {}) {
 // A light load returns (and the response carries) only the newest history entries: the one loaded plus
 // those this request added. GET /contacts/:id has the full history.
 // Moving a contact back to New recomputes "last contacted" from its whole history (see applyInput).
-const needsHistory = (input) => input.stage === 'new';
+// a reply looks up the note it answers, so it needs the whole history (not just the last entry)
+const needsHistory = (input) => input.stage === 'new' || Boolean(input.replyTo);
 
 // ---------- list ----------
 contactsRouter.get('/', async (req, res) => {
@@ -501,12 +503,17 @@ const activityInput = z
     followUp: dateField,
     followUpNote: textField,
     booking: z.object({ date: dateField, time: z.string().max(20).optional(), note: z.string().max(5000).optional() }).optional(),
+    // notes: who it tags (user ids from GET /auth/team), @all, and the note it replies to
+    mentions: z.array(z.string()).max(50).optional(),
+    mentionAll: z.boolean().optional(),
+    replyTo: z.string().optional(),
   })
   .strict();
 
 contactsRouter.post('/:id/activities', async (req, res) => {
   const input = activityInput.parse(req.body);
   const doc = await loadContact(req.params.id, { light: !needsHistory(input) });
+  let note = null;
   if (input.type === 'call') {
     doc.lastContactedAt = new Date();
     // A call on a New contact moves it to Started unless the caller picked the stage (Connected / Voice Mail / ...).
@@ -540,10 +547,27 @@ contactsRouter.post('/:id/activities', async (req, res) => {
     return res.json(doc);
   } else {
     if (!input.message?.trim()) throw new HttpError(400, 'message is required for a note');
-    doc.activities.push({ type: 'note', message: input.message.trim() });
+    // A reply hangs under the first note of its thread, and tells that note's author (the asker).
+    let root = null;
+    if (input.replyTo) {
+      const parent = mongoose.isValidObjectId(input.replyTo) ? doc.activities.id(input.replyTo) : null;
+      root = parent?.replyTo ? doc.activities.id(parent.replyTo) : parent;
+      if (!root || root.type !== 'note') throw new HttpError(400, 'You can only reply to a note');
+    }
+    const mentions = await validMentions(input.mentions);
+    doc.activities.push({
+      type: 'note',
+      message: input.message.trim(),
+      ...(mentions.length ? { mentions } : {}),
+      ...(input.mentionAll ? { mentionAll: true } : {}),
+      ...(root ? { replyTo: root._id } : {}),
+    });
+    note = { activity: doc.activities[doc.activities.length - 1], askerId: root?.byId || null };
   }
   applyInput(doc, { stage: input.type === 'note' ? input.stage : undefined, followUp: input.followUp, followUpNote: input.followUpNote, booking: input.booking }, { logEdits: false });
   await doc.save();
+  // after the save, so the note carries its author (stamped on save)
+  if (note) await notifyNote({ contact: doc, ...note }).catch((err) => console.warn(`[mentions] ${err.message}`));
   res.json(doc);
 });
 
@@ -595,6 +619,31 @@ contactsRouter.delete('/:id/followups/last', async (req, res) => {
   res.json(doc);
 });
 
+// Fix the text of a note. Only notes: other entries record something that happened (a call, a stage move).
+const noteEdit = z
+  .object({ message: z.string().trim().min(1, 'The note cannot be empty').max(5000), mentions: z.array(z.string()).max(50).optional(), mentionAll: z.boolean().optional() })
+  .strict();
+
+contactsRouter.patch('/:id/activities/:activityId', async (req, res) => {
+  const input = noteEdit.parse(req.body);
+  const doc = await loadContact(req.params.id);
+  const act = doc.activities.id(req.params.activityId);
+  if (!act) throw new HttpError(404, 'Activity not found');
+  if (act.type !== 'note') throw new HttpError(400, 'Only notes can be edited');
+  if (act.message !== input.message) {
+    const before = { mentions: (act.mentions || []).map(String), all: Boolean(act.mentionAll) };
+    act.message = input.message;
+    act.editedAt = new Date();
+    act.editedBy = req.user?.displayName || req.user?.username || '';
+    if (input.mentions) act.mentions = await validMentions(input.mentions);
+    if (input.mentionAll !== undefined) act.mentionAll = input.mentionAll || undefined;
+    await doc.save();
+    // only the people the edit newly tags hear about it (everyone was told already when it said @all)
+    if (!before.all) await notifyNote({ contact: doc, activity: act, alreadyTold: before.mentions }).catch((err) => console.warn(`[mentions] ${err.message}`));
+  }
+  res.json(doc);
+});
+
 contactsRouter.delete('/:id/activities/:activityId', async (req, res) => {
   const doc = await loadContact(req.params.id);
   const act = doc.activities.id(req.params.activityId);
@@ -602,7 +651,10 @@ contactsRouter.delete('/:id/activities/:activityId', async (req, res) => {
   // Entries a sheet import wrote are the audit trail of the sheet, not something logged in the app: they stay.
   if (isImportActivity(act)) throw new HttpError(400, 'This entry came from the sheet import and cannot be deleted');
   undoActivity(doc, act);
-  act.deleteOne();
+  // a note takes its replies with it, and they all leave the "Tagged me" lists
+  const gone = act.type === 'note' ? [act, ...doc.activities.filter((a) => a.replyTo && String(a.replyTo) === String(act._id))] : [act];
+  for (const a of gone) a.deleteOne();
   await doc.save();
+  if (act.type === 'note') await forgetNotes(gone.map((a) => a._id));
   res.json(doc);
 });

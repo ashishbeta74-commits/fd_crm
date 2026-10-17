@@ -136,6 +136,7 @@ export const api = {
     logout: () => request('/auth/logout', { method: 'POST', body: {} }),
     changePassword: (body) => request('/auth/change-password', { method: 'POST', body }),
     users: () => request('/auth/users'),
+    team: () => request('/auth/team'),
     resetPassword: (id) => request(`/auth/users/${id}/reset-password`, { method: 'POST', body: {} }),
     updateUser: (id, body) => request(`/auth/users/${id}`, { method: 'PATCH', body }),
   },
@@ -158,6 +159,7 @@ export const api = {
     bulk: (body) => request('/contacts/bulk', { method: 'POST', body }),
     addActivity: (id, body) => request(`/contacts/${id}/activities`, { method: 'POST', body }),
     removeLastFollowUp: (id) => request(`/contacts/${id}/followups/last`, { method: 'DELETE' }),
+    editActivity: (id, activityId, body) => request(`/contacts/${id}/activities/${activityId}`, { method: 'PATCH', body }),
     removeActivity: (id, activityId) => request(`/contacts/${id}/activities/${activityId}`, { method: 'DELETE' }),
     exportUrl: (params) => `${BASE}/contacts/export${toQuery(params)}`,
   },
@@ -222,6 +224,10 @@ export const api = {
     unsubscribe: (endpoint) => request('/push/subscribe', { method: 'DELETE', body: { endpoint } }),
     test: () => request('/push/test', { method: 'POST', body: {} }),
     status: () => request('/push/status'),
+  },
+  mentions: {
+    list: () => request('/mentions'),
+    read: (ids) => request('/mentions/read', { method: 'POST', body: ids ? { ids } : {} }),
   },
 
   // Phone scripts + Q&A (the calling playbook)
@@ -317,6 +323,8 @@ export const qk = {
   views: ['views'],
   reminders: ['reminders'],
   remindersDue: ['reminders', 'due'],
+  team: ['team'],
+  mentions: ['mentions'],
   duplicates: (params) => ['duplicates', params || {}],
   merges: ['duplicates', 'merges'],
   templates: ['templates'],

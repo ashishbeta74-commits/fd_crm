@@ -22,6 +22,13 @@ const ActivitySchema = new Schema({
   // on sheet syncs and on start-up jobs. byName is kept so the history reads without a user lookup.
   byId: { type: Schema.Types.ObjectId, ref: 'User' },
   byName: { type: String },
+  // Set when a note's text was changed after it was written (PATCH /contacts/:id/activities/:activityId).
+  editedAt: { type: Date },
+  editedBy: { type: String },
+  // Notes only: who it tags (@Name -> user ids, @all), and the note it answers (replies sit under it).
+  mentions: { type: [{ type: Schema.Types.ObjectId, ref: 'User' }], default: undefined },
+  mentionAll: { type: Boolean },
+  replyTo: { type: Schema.Types.ObjectId },
 });
 
 /** True for history entries a sheet import wrote. Older entries have no `source`: recognised by type / message. */

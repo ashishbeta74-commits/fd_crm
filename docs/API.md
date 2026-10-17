@@ -84,10 +84,22 @@ The returned `activities` hold only the newest entries (the latest one before th
 
 ### `POST /api/contacts/:id/activities` → updated contact
 - Log a call: `{ "type": "call", "message"?: "…", "stage"?: "connected" | "voicemail" | "wrong_number" | "hung_up" | "not_interested" | any stage, "followUp"?: "YYYY-MM-DD", "followUpNote"?: "…", "booking"?: {date,time,note} }`. Without `stage`, a `new` contact moves to `started`.
-- Add a note: `{ "type": "note", "message": "…", "stage"?: "…", "followUp"?: …, "booking"?: … }`
+- Add a note: `{ "type": "note", "message": "…", "stage"?: "…", "followUp"?: …, "booking"?: …, "mentions"?: [userId], "mentionAll"?: true, "replyTo"?: activityId }`. `mentions` = the team members it tags (ids from `GET /auth/team`; unknown / inactive ones are dropped), `mentionAll` = @all. `replyTo` = the note it answers (a reply to a reply joins the first note's thread). Everyone tagged, plus the author of the note replied to, gets a row in `GET /mentions` and a push notification (never the writer themselves).
 - Add a follow-up (one round done): `{ "type": "followup", "message"?: "what happened", "followUp"?: "YYYY-MM-DD" (the next one; omitted = nothing further, the date is cleared), "followUpNote"?: "…", "stage"?: "…" }` → `followUpCount` + 1, `lastContactedAt` = now, activity `Follow-up #N done - next on …`.
 ### `DELETE /api/contacts/:id/followups/last` → updated contact
 Takes back the most recent "Add follow-up": its history entry is deleted, `followUpCount` drops by one and `lastContactedAt` is recomputed. A counter with no entry behind it (set by hand or by import) just drops by one. 400 when there is nothing to remove.
+### `PATCH /api/contacts/:id/activities/:activityId` → updated contact
+Edit a note's text: `{ "message": "…", "mentions"?: [userId], "mentionAll"?: bool }` (1-5000 characters). Only `note` entries (400 otherwise). The entry keeps its author and time and gains `editedAt` + `editedBy` (the editor's name). Only people the edit newly tags are notified.
+
+Deleting a note also deletes its replies and their `GET /mentions` rows.
+
+### `GET /api/auth/team` → `{ items: [{ _id, displayName, username }] }`
+Active team members, for tagging (@Name) in notes. Any signed-in user.
+
+### `GET /api/mentions` → `{ items, unread }`
+The signed-in person's "Tagged me" list, newest first (50): `{ _id, kind: "mention" | "reply", all, contactId, activityId, byName, text, readAt, createdAt, contact: { name, companyName } }`.
+### `POST /api/mentions/read`
+`{ ids?: string[] }` → `{ updated }`. Marks those rows (or, without `ids`, all of them) as read.
 ### `DELETE /api/contacts/:id/activities/:activityId` → updated contact
 Only entries logged in the app can be deleted; entries a sheet import wrote (`fromImport: true` on `GET /contacts/:id`, i.e. `source: "import"` or, for older data, type `import` / messages ending in `(import)` / the sheet's call history like `1st call: …`) answer 400. Deleting takes back what the entry recorded: a logged LinkedIn step (`LinkedIn: Followed the profile …`) clears the date it set, so the stage and the LinkedIn counters drop by one; a call or email recomputes `lastContactedAt` from what is left.
 

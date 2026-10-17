@@ -36,6 +36,8 @@ const KEYS_BY_COLLECTION = {
   emailevaluations: [['email-evaluation']],
   // a status change on Client Reach Out / Reservations also moves "My dashboard"
   sheetrows: [['workspace'], ['stats', 'me']],
+  // someone tagged you / replied to you (the "Tagged me" bell)
+  mentions: [['mentions']],
   // a sheet sync records its outcome in the settings
   settings: [['email-evaluation', 'meta'], ['workspace']],
 };

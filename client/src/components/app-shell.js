@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ReminderBell } from '@/components/reminders/reminder-bell';
+import { MentionBell } from '@/components/mentions/mention-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SidebarViews } from '@/components/views/sidebar-views';
 import { useAuth } from '@/components/auth/auth-provider';
@@ -192,6 +193,7 @@ export function AppShell({ children }) {
         <div className={cn('mt-auto flex w-full gap-1 border-t pt-3', collapsed ? 'flex-col items-center' : 'flex-wrap items-center')}>
           <ThemeToggle side="right" />
           <ReminderBell />
+          <MentionBell />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon" onClick={toggleCollapsed} aria-label={collapsed ? 'Show menu labels' : 'Hide menu labels'} aria-expanded={!collapsed} className={cn(!collapsed && 'ml-auto')}>
@@ -245,6 +247,7 @@ export function AppShell({ children }) {
           <span className="font-display text-base font-semibold tracking-[0.12em] text-brand-gold-deep uppercase dark:text-brand-gold">Famous Drive</span>
           <ThemeToggle className="ml-auto" />
           <ReminderBell />
+          <MentionBell />
           <UserMenu compact />
         </header>
         <main className="flex-1 px-4 py-6 md:px-8">

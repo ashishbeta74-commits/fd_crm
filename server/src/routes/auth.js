@@ -56,6 +56,12 @@ authRouter.post('/change-password', async (req, res) => {
   res.json({ token: signToken(user), user: signedIn(user) });
 });
 
+// Who can be tagged in a note (@Name): every active team member, names only. Open to anyone signed in.
+authRouter.get('/team', async (req, res) => {
+  const items = await User.find({ active: true }).sort({ displayName: 1 }).select('displayName username').lean();
+  res.json({ items });
+});
+
 // ---- super admin: the team list and password resets ----
 authRouter.get('/users', requireAdmin, async (req, res) => {
   const items = await User.find().sort({ userId: 1 }).lean();

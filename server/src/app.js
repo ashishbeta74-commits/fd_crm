@@ -30,6 +30,7 @@ import { startStageDateRepair } from './lib/migrations.js';
 import { dayKey, getReport, history, startDailyReports } from './services/dailyReport.js';
 import { pushRouter } from './routes/push.js';
 import { eventsRouter } from './routes/events.js';
+import { mentionsRouter } from './routes/mentions.js';
 import { startChangeFeed } from './lib/changes.js';
 import { seedTemplates } from './services/emailTemplates.js';
 import { seedScripts } from './services/scripts.js';
@@ -105,6 +106,7 @@ export function createApp() {
   app.use('/api/workspaces', workspacesRouter);
   app.use('/api/push', pushRouter);
   app.use('/api/events', eventsRouter);
+  app.use('/api/mentions', mentionsRouter);
 
   app.use(notFound);
   app.use(errorHandler);

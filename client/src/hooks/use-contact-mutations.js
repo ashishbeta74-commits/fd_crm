@@ -176,6 +176,16 @@ export function useRemoveLastFollowUp() {
   });
 }
 
+/** PATCH /contacts/:id/activities/:activityId - change a note's text (and who it tags). */
+export function useEditActivity() {
+  const invalidate = useInvalidateContacts();
+  return useMutation({
+    mutationFn: ({ id, activityId, ...body }) => api.contacts.editActivity(id, activityId, body),
+    onSuccess: (doc) => invalidate(doc._id),
+    onError: showError,
+  });
+}
+
 export function useRemoveActivity() {
   const invalidate = useInvalidateContacts();
   const qc = useQueryClient();
