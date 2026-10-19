@@ -33,6 +33,17 @@ export function useRemoveRow() {
   return useMutation({ mutationFn: (id) => api.emailEvaluation.remove(id), onSuccess: invalidate, onError: showError });
 }
 
+/** Log the next follow-up send ({ id, channel }) / take back the last one logged here (id). */
+export function useLogSend() {
+  const invalidate = useInvalidateEmailEvaluation();
+  return useMutation({ mutationFn: ({ id, ...body }) => api.emailEvaluation.logSend(id, body), onSuccess: invalidate, onError: showError });
+}
+
+export function useUndoSend() {
+  const invalidate = useInvalidateEmailEvaluation();
+  return useMutation({ mutationFn: (id) => api.emailEvaluation.undoSend(id), onSuccess: invalidate, onError: showError });
+}
+
 /** "Sync now": re-reads the sheet; the toast says what changed. */
 export function useSyncSheet() {
   const invalidate = useInvalidateEmailEvaluation();

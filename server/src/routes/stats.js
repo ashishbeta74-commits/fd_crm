@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Router } from 'express';
 import { Contact } from '../models/Contact.js';
+import { EmailEvaluation } from '../models/EmailEvaluation.js';
 import { ImportBatch } from '../models/ImportBatch.js';
 import { Reminder } from '../models/Reminder.js';
 import { PRIORITY_KEYS, STAGE_KEYS } from '../fields.js';
@@ -163,7 +164,7 @@ async function computeStats() {
   const now = new Date();
   const localMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const localTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const [rollup, upcomingBookings, dueFollowUps, recentActivity, recentImports, remindersOverdue, remindersToday, urgentOpen] = await Promise.all([
+  const [rollup, upcomingBookings, dueFollowUps, recentActivity, recentImports, remindersOverdue, remindersToday, urgentOpen, emailFollowUpsDue] = await Promise.all([
     contactRollup({ today, tomorrow, week, localMidnight }),
     Contact.find({ 'booking.date': { $gte: today } })
       .sort({ 'booking.date': 1, 'booking.time': 1 })
@@ -197,6 +198,8 @@ async function computeStats() {
       { $match: { open: { $size: 0 } } },
       { $count: 'n' },
     ]),
+    // Email Evaluation rows whose next send (10 working days after the last) is due today or overdue.
+    EmailEvaluation.countDocuments({ nextFollowUpAt: { $ne: null, $lte: today } }),
   ]);
 
   const f = rollup[0] || {};
@@ -210,6 +213,7 @@ async function computeStats() {
     bySheet: (f.bySheet || []).map((r) => ({ sheet: r._id || '(manual)', count: r.count })),
     followUps: { overdue: totals.overdue || 0, today: totals.dueToday || 0, week: totals.dueWeek || 0 },
     reminders: { overdue: remindersOverdue, today: remindersToday, unscheduledPriority: urgentOpen[0]?.n || 0 },
+    emailFollowUpsDue,
     contactedToday: totals.contactedToday || 0,
     prospectsToday: entered.prospect || 0,
     // today's call results: contacts that entered the stage since midnight and are still in it

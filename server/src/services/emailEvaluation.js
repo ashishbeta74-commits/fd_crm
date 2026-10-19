@@ -10,7 +10,7 @@
 // cell changed too. Rows that vanished from the sheet are dropped, unless they were edited here.
 import { createHash } from 'node:crypto';
 import { HttpError } from '../lib/errors.js';
-import { isoDate, parseDate } from '../lib/dates.js';
+import { isoDate, parseDate, utcDate } from '../lib/dates.js';
 import { EVAL_FIELDS, EmailEvaluation } from '../models/EmailEvaluation.js';
 import { Setting } from '../models/User.js';
 import { valueToText } from './excel.js';
@@ -257,6 +257,7 @@ export async function syncEmailEvaluations({ force = true, log = console.log } =
     }
   }
   if (ops.length) await EmailEvaluation.bulkWrite(ops, { ordered: false });
+  await refreshFollowUps({ spreadsheetId: settings.spreadsheetId });
 
   await patchSettings({ lastSyncedAt: now, lastResult: 'synced', lastError: '', lastCounts: counts, lastTabs: tabNames, contentHash });
   edit?.done();
@@ -276,6 +277,74 @@ function fieldsFromValues(values, only = null) {
     }
   }
   return out;
+}
+
+// ---------- follow-up sends ----------
+// Sent 1 goes out on the row's DATE; each next send is due 10 working days (Mon-Fri) after the last, up to Sent 5.
+
+export const MAX_SENDS = 5;
+export const FOLLOW_UP_WORKDAYS = 10;
+export const CHANNELS = ['email', 'text', 'whatsapp', 'call'];
+/** Reservations tabs are not followed up. */
+export const tracksFollowUps = (tab) => !/reservation/i.test(tab || '');
+/** The sheet's tabs (HARRY, INFO, Advisors) are followed up by email only; rows added here by any channel. */
+export const channelsFor = (tab) => (!tracksFollowUps(tab) ? [] : tab ? ['email'] : CHANNELS);
+
+/** UTC-midnight date `n` Mon-Fri days after `date`. */
+export function addWorkdays(date, n) {
+  const d = new Date(date);
+  while (n > 0) {
+    d.setUTCDate(d.getUTCDate() + 1);
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) n -= 1;
+  }
+  return d;
+}
+
+const BOOKED = /(?<!never\s*)booked/i;
+
+/**
+ * The team's DATE OF FOLLOW UP text -> { n, date } of the last send, or null.
+ * "3rd RE Sent 28/09" (day/month, year of the row), "2nd Re sent 09/29/2026" / "2nd Follow up 10-02-2026"
+ * (month/day with a year), "Sent 10-5-2026" (Sent 1), a bare date cell (Sent 1 on that day).
+ */
+export function parseSent(text, rowDate = null) {
+  const s = String(text || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return { n: 1, date: parseDate(s) };
+  const ord = s.match(/(\d)\s*(?:st|nd|rd|th)/i);
+  if (!ord && !/sent|follow/i.test(s)) return null;
+  const m = s.match(/(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2,4}))?/);
+  if (!m) return null;
+  const [a, b] = [+m[1], +m[2]];
+  const year = m[3] ? (+m[3] % 100) + 2000 : new Date(rowDate || Date.now()).getUTCFullYear();
+  // With a year the team writes month/day, without one day/month; a part over 12 settles it either way.
+  const monthFirst = m[3] ? a <= 12 : b > 12;
+  const date = monthFirst ? utcDate(year, a, b) : utcDate(year, b, a);
+  return date ? { n: Math.min(ord ? +ord[1] : 1, MAX_SENDS), date } : null;
+}
+
+/** { sentCount, lastSentAt, nextFollowUpAt } for a row: the later of the last CRM send and the sheet's text, else Sent 1 on DATE. */
+export function followUpState(doc) {
+  const none = { sentCount: 0, lastSentAt: null, nextFollowUpAt: null };
+  if (!tracksFollowUps(doc.tab)) return none;
+  const crm = doc.sends?.length ? doc.sends[doc.sends.length - 1] : null;
+  const sheet = parseSent(doc.followUpDate, doc.date);
+  const last = (crm && (!sheet || crm.n >= sheet.n) ? crm : sheet) || (doc.date ? { n: 1, date: doc.date } : null);
+  if (!last) return none;
+  const done = last.n >= MAX_SENDS || BOOKED.test(`${doc.followUpDate} ${doc.status}`);
+  return { sentCount: last.n, lastSentAt: last.date, nextFollowUpAt: done ? null : addWorkdays(last.date, FOLLOW_UP_WORKDAYS) };
+}
+
+/** Recompute the derived follow-up fields of the matching rows; writes only the rows that changed. */
+export async function refreshFollowUps(filter = {}) {
+  const docs = await EmailEvaluation.find(filter).select('tab date status followUpDate sends sentCount lastSentAt nextFollowUpAt').lean();
+  const same = (a, b) => (a ? +new Date(a) : 0) === (b ? +new Date(b) : 0);
+  const ops = [];
+  for (const d of docs) {
+    const s = followUpState(d);
+    if (s.sentCount !== d.sentCount || !same(s.lastSentAt, d.lastSentAt) || !same(s.nextFollowUpAt, d.nextFollowUpAt)) ops.push({ updateOne: { filter: { _id: d._id }, update: { $set: s } } });
+  }
+  if (ops.length) await EmailEvaluation.bulkWrite(ops, { ordered: false });
+  return ops.length;
 }
 
 // ---------- automatic sync ----------
@@ -303,6 +372,7 @@ export function startEmailEvaluationSync() {
   const first = setTimeout(async () => {
     try {
       if ((await EmailEvaluation.estimatedDocumentCount()) === 0) await tick({ force: true });
+      else await refreshFollowUps(); // rows synced before follow-ups were tracked
     } catch (err) {
       console.error('[email-evaluation] first sync failed:', err.message);
     }

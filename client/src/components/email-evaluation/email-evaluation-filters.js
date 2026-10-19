@@ -12,8 +12,8 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Default direction per sortable column (the API's SORTS); the first click on a header uses it.
-export const SORTS = { date: 'desc', evaluatedFor: 'desc', clientName: 'asc', company: 'asc', status: 'asc', primaryEmail: 'asc', followUpDate: 'asc', updatedAt: 'desc', tab: 'asc' };
-export const FILTER_KEYS = ['q', 'tab', 'evaluatedFor', 'followUp', 'from', 'to', 'missing'];
+export const SORTS = { date: 'desc', evaluatedFor: 'desc', clientName: 'asc', company: 'asc', status: 'asc', primaryEmail: 'asc', followUpDate: 'asc', nextFollowUpAt: 'asc', updatedAt: 'desc', tab: 'asc' };
+export const FILTER_KEYS = ['q', 'tab', 'evaluatedFor', 'followUp', 'due', 'company', 'from', 'to', 'missing'];
 export const PAGE_SIZES = [25, 50, 100, 200];
 const DEFAULTS = { page: 1, limit: 50, sort: 'date', dir: 'desc' };
 const ALL = '__all__';
@@ -33,6 +33,8 @@ export function parseParams(sp) {
     from: get('from'),
     to: get('to'),
     missing: oneOf(get('missing'), ['yes'], ''),
+    due: oneOf(get('due'), ['yes'], ''),
+    company: oneOf(get('company'), ['missing'], ''),
     page: page > 0 ? page : 1,
     limit: PAGE_SIZES.includes(limit) ? limit : DEFAULTS.limit,
     sort: oneOf(get('sort'), Object.keys(SORTS), DEFAULTS.sort),
@@ -178,6 +180,8 @@ export function EmailEvaluationToolbar({ params, setParams, clearFilters, active
         onChange={(followUp) => setParams({ followUp })}
         allLabel="Any"
       />
+      <SingleFilter label="Next send" options={[{ value: 'yes', label: 'Due now' }]} value={params.due} onChange={(due) => setParams({ due })} allLabel="Any" />
+      <SingleFilter label="Company" options={[{ value: 'missing', label: 'Missing' }]} value={params.company} onChange={(company) => setParams({ company })} allLabel="Any" />
       <DateBound label="From" value={params.from} onChange={(from) => setParams({ from })} />
       <DateBound label="To" value={params.to} onChange={(to) => setParams({ to })} />
       {activeCount ? (

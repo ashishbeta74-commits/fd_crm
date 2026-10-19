@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { AlarmClock, BellRing, CalendarCheck, CalendarClock, Flag, Linkedin, PhoneCall, PhoneOff, Plus, RefreshCw, Sparkles, Target, ThumbsDown, Upload, Users, Voicemail } from 'lucide-react';
+import { AlarmClock, BellRing, CalendarCheck, CalendarClock, Flag, Linkedin, PhoneCall, PhoneOff, Plus, RefreshCw, Send, Sparkles, Target, ThumbsDown, Upload, Users, Voicemail } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, qk } from '@/lib/api';
 import { isLive, livePoll } from '@/lib/live';
@@ -173,6 +173,7 @@ function Overview() {
     bySheet = [],
     followUps = {},
     reminders = {},
+    emailFollowUpsDue = 0,
     byPriority = {},
     contactedToday = 0,
     prospectsToday = 0,
@@ -239,6 +240,16 @@ function Overview() {
             tone={reminders.overdue > 0 ? 'destructive' : 'default'}
             caption={`${reminders.overdue || 0} overdue`}
             hint="Open reminders that are overdue or due today (see the bell)"
+          />
+          <StatTile
+            label="Email follow-ups due"
+            value={emailFollowUpsDue}
+            href="/email-evaluation?due=yes&sort=nextFollowUpAt&dir=asc"
+            icon={Send}
+            accent="orange"
+            tone={emailFollowUpsDue > 0 ? 'destructive' : 'default'}
+            caption="Email Evaluation, 10 working days on"
+            hint="Email Evaluation rows whose next send (Sent 2 to Sent 5) is due: 10 working days (Mon-Fri) after the last send"
           />
           <StatTile
             label="Urgent + high priority"

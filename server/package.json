@@ -13,7 +13,7 @@
     "sample": "node scripts/make-sample.js",
     "smoke": "node --env-file-if-exists=.env scripts/smoke.js",
     "smoke:features": "node --env-file-if-exists=.env scripts/features-smoke.js",
-    "test:unit": "node scripts/writeback-unit.js",
+    "test:unit": "node scripts/writeback-unit.js && node scripts/email-followups-unit.js",
     "import:links": "node --env-file-if-exists=.env scripts/import-links.js",
     "copy-db": "node --env-file-if-exists=.env scripts/copy-db.js"
   },

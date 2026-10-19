@@ -6,16 +6,16 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { HttpError } from '../lib/errors.js';
 import { requireAdmin } from '../lib/auth.js';
-import { isoDate, parseDate } from '../lib/dates.js';
+import { isoDate, parseDate, todayUtc } from '../lib/dates.js';
 import { escapeRegex } from '../lib/pool.js';
 import { EVAL_FIELDS, EmailEvaluation } from '../models/EmailEvaluation.js';
 import { autoSyncInfo } from '../services/sync.js';
-import { cleanEmail, cleanPhone, cleanText, getSettings, mapHeaders, nextRowKey, setSheet, syncEmailEvaluations } from '../services/emailEvaluation.js';
+import { CHANNELS, MAX_SENDS, channelsFor, cleanEmail, cleanPhone, cleanText, followUpState, getSettings, mapHeaders, nextRowKey, setSheet, syncEmailEvaluations, tracksFollowUps } from '../services/emailEvaluation.js';
 import { appendSheetRow, readTabHeaders } from '../services/sheetAppend.js';
 
 export const emailEvaluationRouter = Router();
 
-const SORTS = { date: -1, clientName: 1, company: 1, evaluatedFor: -1, status: 1, primaryEmail: 1, followUpDate: 1, updatedAt: -1, tab: 1 };
+const SORTS = { date: -1, clientName: 1, company: 1, evaluatedFor: -1, status: 1, primaryEmail: 1, followUpDate: 1, nextFollowUpAt: 1, updatedAt: -1, tab: 1 };
 const PAGE_SIZES = [25, 50, 100, 200];
 const csv = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
 const who = (req) => req.user?.displayName || req.user?.username || '';
@@ -30,6 +30,9 @@ const listQuery = z.object({
   to: z.string().max(20).default(''),
   // rows that were edited here but are no longer in the sheet
   missing: z.enum(['', 'yes']).default(''),
+  // 'yes' = the next follow-up send is due today or overdue
+  due: z.enum(['', 'yes']).default(''),
+  company: z.enum(['', 'missing']).default(''),
   sort: z.string().default('date'),
   dir: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -53,6 +56,8 @@ function buildFilter(p) {
   const to = parseDate(p.to);
   if (from || to) and.push({ date: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) } });
   if (p.missing === 'yes') and.push({ missingSince: { $ne: null } });
+  if (p.due === 'yes') and.push({ nextFollowUpAt: { $ne: null, $lte: todayUtc() } });
+  if (p.company === 'missing') and.push({ company: { $in: ['', null] } });
   return and.length ? { $and: and } : {};
 }
 
@@ -99,6 +104,8 @@ emailEvaluationRouter.get('/meta', async (req, res) => {
                 followedUp: { $sum: { $cond: [{ $or: [{ $gt: [{ $strLenCP: { $ifNull: ['$followUp', ''] } }, 0] }, { $gt: [{ $strLenCP: { $ifNull: ['$followUpDate', ''] } }, 0] }] }, 1, 0] } },
                 addedHere: { $sum: { $cond: [{ $eq: ['$source', 'crm'] }, 1, 0] } },
                 missing: { $sum: { $cond: [{ $ne: ['$missingSince', null] }, 1, 0] } },
+                due: { $sum: { $cond: [{ $lte: [{ $ifNull: ['$nextFollowUpAt', new Date(8.64e15)] }, todayUtc()] }, 1, 0] } },
+                noCompany: { $sum: { $cond: [{ $eq: [{ $strLenCP: { $ifNull: ['$company', ''] } }, 0] }, 1, 0] } },
               },
             },
           ],
@@ -106,7 +113,7 @@ emailEvaluationRouter.get('/meta', async (req, res) => {
       },
     ]).then((r) => r[0]),
   ]);
-  const counts = facet?.counts?.[0] || { total: 0, withEmail: 0, withPhone: 0, withStatus: 0, followedUp: 0, addedHere: 0, missing: 0 };
+  const counts = facet?.counts?.[0] || { total: 0, withEmail: 0, withPhone: 0, withStatus: 0, followedUp: 0, addedHere: 0, missing: 0, due: 0, noCompany: 0 };
   delete counts._id;
   res.json({
     tabs: (facet?.tabs || []).map((t) => ({ tab: t._id || '', count: t.count })),
@@ -135,10 +142,13 @@ emailEvaluationRouter.get('/export', async (req, res) => {
     { header: 'NOTES', key: 'notes', width: 40 },
     { header: 'FOLLOW UP', key: 'followUp', width: 16 },
     { header: 'DATE OF FOLLOW UP', key: 'followUpDate', width: 20 },
+    { header: 'Sent', key: 'sentCount', width: 8 },
+    { header: 'Last sent', key: 'lastSentAt', width: 12 },
+    { header: 'Next follow-up', key: 'nextFollowUpAt', width: 14 },
     { header: 'Tab', key: 'tab', width: 14 },
   ];
   ws.getRow(1).font = { bold: true };
-  for (const it of items) ws.addRow({ ...it, date: it.date ? isoDate(it.date) : it.dateLabel });
+  for (const it of items) ws.addRow({ ...it, date: it.date ? isoDate(it.date) : it.dateLabel, sentCount: it.sentCount || '', lastSentAt: isoDate(it.lastSentAt), nextFollowUpAt: isoDate(it.nextFollowUpAt) });
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="email-evaluation-${isoDate(new Date())}.xlsx"`);
   await wb.xlsx.write(res);
@@ -194,6 +204,7 @@ emailEvaluationRouter.post('/', async (req, res) => {
   const doc = new EmailEvaluation({ source: 'crm', spreadsheetId: settings.spreadsheetId, tab: '', rowNumber: 0, ...fields, editedAt: new Date(), updatedBy: who(req) });
   doc.key = `crm:${doc._id}`;
   const sheetWrite = tab ? await fileIntoTab(doc, tab, settings) : null;
+  Object.assign(doc, followUpState(doc));
   await doc.save();
   res.status(201).json({ ...doc.toObject(), sheetWrite });
 });
@@ -239,10 +250,44 @@ emailEvaluationRouter.patch('/:id', async (req, res) => {
   let sheetWrite = null;
   if (tab && tab !== doc.tab && doc.source === 'sheet') throw new HttpError(400, 'This row is already in the sheet; move it there, the next sync follows');
   if (tab && doc.source !== 'sheet') sheetWrite = await fileIntoTab(doc, tab, await getSettings());
+  Object.assign(doc, followUpState(doc));
   await doc.save();
+  res.json({ ...rowOut(doc), sheetWrite });
+});
+
+const rowOut = (doc) => {
   const out = doc.toObject();
   delete out.sheet;
-  res.json({ ...out, sheetWrite });
+  return out;
+};
+
+// ---------- follow-up sends ----------
+// Log the next send (Sent 2 ... Sent 5): { channel, date? (defaults to today) }. CRM only, the sheet is not changed.
+emailEvaluationRouter.post('/:id/sends', async (req, res) => {
+  const body = z.object({ channel: z.enum(CHANNELS), date: z.string().trim().max(40).optional() }).parse(req.body);
+  const doc = await EmailEvaluation.findById(req.params.id);
+  if (!doc) throw new HttpError(404, 'Row not found');
+  if (!tracksFollowUps(doc.tab)) throw new HttpError(400, `Rows of the "${doc.tab}" tab are not followed up`);
+  if (!channelsFor(doc.tab).includes(body.channel)) throw new HttpError(400, `The "${doc.tab}" tab is followed up by email only`);
+  const { sentCount } = followUpState(doc);
+  if (sentCount >= MAX_SENDS) throw new HttpError(400, `All ${MAX_SENDS} sends are done`);
+  const date = body.date ? parseDate(body.date) : todayUtc();
+  if (!date) throw new HttpError(400, 'Date not recognised (use YYYY-MM-DD)');
+  doc.sends.push({ n: sentCount + 1, date, channel: body.channel, by: who(req), at: new Date() });
+  Object.assign(doc, followUpState(doc), { editedAt: new Date(), updatedBy: who(req) });
+  await doc.save();
+  res.status(201).json(rowOut(doc));
+});
+
+// Take back the last send logged here (a send read from the sheet's text is changed in the sheet).
+emailEvaluationRouter.delete('/:id/sends/last', async (req, res) => {
+  const doc = await EmailEvaluation.findById(req.params.id);
+  if (!doc) throw new HttpError(404, 'Row not found');
+  if (!doc.sends.length) throw new HttpError(400, 'No send was logged here for this row');
+  doc.sends.pop();
+  Object.assign(doc, followUpState(doc), { updatedBy: who(req) });
+  await doc.save();
+  res.json(rowOut(doc));
 });
 
 // Removes the row here only; a row still in the sheet comes back on the next sync.

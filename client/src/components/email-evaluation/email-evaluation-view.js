@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AtSign, CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, ExternalLink, FileSpreadsheet, Loader2, MailCheck, Phone, PlusCircle, RefreshCw, SearchX, Settings2, TriangleAlert } from 'lucide-react';
+import { AtSign, Building2, CalendarCheck, ChevronLeft, ChevronRight, CircleAlert, ExternalLink, FileSpreadsheet, Loader2, MailCheck, Phone, PlusCircle, RefreshCw, SearchX, Send, Settings2, TriangleAlert } from 'lucide-react';
 import { api, qk } from '@/lib/api';
 import { livePoll } from '@/lib/live';
 import { pluralize, timeAgo } from '@/lib/format';
@@ -29,8 +29,8 @@ export function EmailEvaluationViewFallback() {
   return (
     <div className="grid grid-cols-1 gap-4" aria-busy>
       <Skeleton className="h-12 w-full rounded-lg" />
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-7">
+        {Array.from({ length: 7 }, (_, i) => (
           <Skeleton key={i} className="h-[66px] rounded-xl" />
         ))}
       </div>
@@ -152,8 +152,8 @@ function SheetBar({ meta, isPending }) {
 function Tiles({ meta, isPending }) {
   if (isPending || !meta) {
     return (
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-7">
+        {Array.from({ length: 7 }, (_, i) => (
           <Skeleton key={i} className="h-[66px] rounded-xl" />
         ))}
       </div>
@@ -161,10 +161,12 @@ function Tiles({ meta, isPending }) {
   }
   const c = meta.counts;
   return (
-    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-7">
       <StatTile compact label="Rows" value={c.total} icon={MailCheck} accent="green" caption={`${meta.tabs.filter((t) => t.tab).length} sheet tab${meta.tabs.filter((t) => t.tab).length === 1 ? '' : 's'}`} hint="Every evaluation row, from the sheet and added here" href="/email-evaluation" />
       <StatTile compact label="With email" value={c.withEmail} icon={AtSign} accent="blue" caption="have a primary email" hint="Rows with a primary email" />
       <StatTile compact label="With phone" value={c.withPhone} icon={Phone} accent="violet" caption="have a phone number" hint="Rows with a phone number" />
+      <StatTile compact label="Follow-ups due" value={c.due} icon={Send} accent="orange" tone={c.due ? 'destructive' : 'default'} caption="next send due now" hint="Rows whose next send (10 working days after the last, up to Sent 5) is due today or overdue" href="/email-evaluation?due=yes&sort=nextFollowUpAt&dir=asc" />
+      <StatTile compact label="No company" value={c.noCompany} icon={Building2} accent="slate" caption="company name missing" hint="Rows without a company name - click a Company cell to fill it in" href="/email-evaluation?company=missing" />
       <StatTile compact label="Follow-up written" value={c.followedUp} icon={CalendarCheck} accent="amber" caption={`${c.total - c.followedUp} without one`} hint='Rows with something in "Follow up" or "Date of follow up"' href="/email-evaluation?followUp=yes" />
       <StatTile compact label="Added here" value={c.addedHere} icon={PlusCircle} accent="slate" caption={c.missing ? `${c.missing} no longer in the sheet` : 'not in the sheet'} hint="Rows added in the CRM, which the sheet does not have" href={c.missing ? '/email-evaluation?missing=yes' : '/email-evaluation?tab=none'} tone={c.missing ? 'destructive' : 'default'} />
     </div>
@@ -291,7 +293,7 @@ export function EmailEvaluationView() {
           <span>{isPending ? 'Loading rows…' : `${pluralize(total, 'row')}${activeCount ? ' match' : ''}`}</span>
           {isFetching && !isPending ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
         </p>
-        <p className="text-xs text-muted-foreground">Click a status, note or follow-up cell to edit it in place.</p>
+        <p className="text-xs text-muted-foreground">Click a company, status, note or follow-up cell to edit it in place.</p>
       </div>
       {content}
     </div>

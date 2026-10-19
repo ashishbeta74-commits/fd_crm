@@ -1,19 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, MoreHorizontal, Pencil, Trash2, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, MoreHorizontal, Pencil, Send, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { formatDate } from '@/lib/format';
+import { formatDate, isoDate } from '@/lib/format';
+import { zonedDateIso } from '@/lib/tz';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmailEvaluationDialog } from '@/components/email-evaluation/email-evaluation-dialog';
-import { useRemoveRow, useUpdateRow } from '@/components/email-evaluation/use-email-evaluation';
+import { useLogSend, useRemoveRow, useUndoSend, useUpdateRow } from '@/components/email-evaluation/use-email-evaluation';
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 
@@ -24,6 +26,7 @@ const COLUMNS = [
   { key: 'clientName', label: 'Client name', sort: 'clientName' },
   { key: 'company', label: 'Company', sort: 'company' },
   { key: 'status', label: 'Status', sort: 'status' },
+  { key: 'nextFollowUpAt', label: 'Follow-ups', sort: 'nextFollowUpAt' },
   { key: 'primaryEmail', label: 'Primary email', sort: 'primaryEmail' },
   { key: 'secondaryEmail', label: 'Secondary email' },
   { key: 'phone', label: 'Phone no' },
@@ -100,6 +103,96 @@ function EditableCell({ item, field, className, multiline = false }) {
     >
       {value || '—'}
     </button>
+  );
+}
+
+const MAX_SENDS = 5;
+const CHANNEL_LABELS = { email: 'Email', text: 'Text', whatsapp: 'WhatsApp', call: 'Call' };
+// Same rule as the API (services/emailEvaluation.js): Reservations tabs are not followed up, sheet tabs by email only.
+const channelsFor = (tab) => (/reservation/i.test(tab || '') ? [] : tab ? ['email'] : Object.keys(CHANNEL_LABELS));
+
+/** "Sent 3/5 · 2 Oct" + when the next send is due (10 working days on), and a menu to log the next send. */
+function FollowUpCell({ item }) {
+  const log = useLogSend();
+  const undo = useUndoSend();
+  const channels = channelsFor(item.tab);
+  if (!channels.length) return <Dash />;
+  const n = item.sentCount || 0;
+  const due = item.nextFollowUpAt && isoDate(item.nextFollowUpAt) <= zonedDateIso();
+  const lastCrm = item.sends?.length ? item.sends[item.sends.length - 1] : null;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 text-sm leading-tight" suppressHydrationWarning>
+        <p className="whitespace-nowrap">
+          {n ? `Sent ${n}/${MAX_SENDS}` : 'Not sent'}
+          {item.lastSentAt ? <span className="text-muted-foreground"> · {formatDate(item.lastSentAt)}</span> : null}
+        </p>
+        {item.nextFollowUpAt ? (
+          <p className={cn('whitespace-nowrap text-xs', due ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+            {due ? 'Due' : 'Next'} {formatDate(item.nextFollowUpAt)}
+          </p>
+        ) : n ? (
+          <p className="text-xs text-muted-foreground">{n >= MAX_SENDS ? 'all sent' : 'stopped (booked)'}</p>
+        ) : null}
+      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="icon-sm" variant={due ? 'default' : 'outline'} disabled={log.isPending || undo.isPending} aria-label="Log a follow-up send">
+            <Send />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {n < MAX_SENDS ? (
+            channels.map((ch) => (
+              <DropdownMenuItem key={ch} onSelect={() => log.mutate({ id: item._id, channel: ch }, { onSuccess: () => toast.success(`Sent ${n + 1} logged (${CHANNEL_LABELS[ch]})${n + 1 < MAX_SENDS ? ' - next one due in 10 working days' : ''}`) })}>
+                <Send /> Sent {n + 1} by {CHANNEL_LABELS[ch]}, today
+              </DropdownMenuItem>
+            ))
+          ) : (
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">All {MAX_SENDS} sends are done</p>
+          )}
+          {lastCrm ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => undo.mutate(item._id, { onSuccess: () => toast.success(`Sent ${lastCrm.n} taken back`) })}>
+                <Undo2 /> Undo Sent {lastCrm.n} ({formatDate(lastCrm.date)})
+              </DropdownMenuItem>
+            </>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+// The sheet's SECONDARY EMAIL column says which of our inboxes the email went from (H, R, ...).
+const MAILBOXES = [
+  { value: 'H', label: 'Harry' },
+  { value: 'I', label: 'Info' },
+  { value: 'R', label: 'Reservations' },
+  { value: 'A', label: 'Advisors' },
+];
+const NO_MAILBOX = '__none__';
+
+/** A mailbox dropdown; a cell that holds a real address (or other text) stays as it is. */
+function MailboxCell({ item }) {
+  const update = useUpdateRow();
+  const value = (item.secondaryEmail || '').toUpperCase();
+  if (value && !MAILBOXES.some((m) => m.value === value)) return <EmailLink value={item.secondaryEmail} className="max-w-48" />;
+  return (
+    <Select value={value || NO_MAILBOX} onValueChange={(v) => update.mutate({ id: item._id, data: { secondaryEmail: v === NO_MAILBOX ? '' : v } }, { onSuccess: () => toast.success('Saved') })} disabled={update.isPending}>
+      <SelectTrigger size="sm" className={cn('w-36', !value && 'text-muted-foreground')} aria-label="Sent from mailbox">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={NO_MAILBOX}>—</SelectItem>
+        {MAILBOXES.map((m) => (
+          <SelectItem key={m.value} value={m.value}>
+            {m.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -202,18 +295,19 @@ function Row({ item: c, tabs }) {
       </TableCell>
       <TableCell className="text-sm tabular-nums">{c.evaluatedFor || <Dash />}</TableCell>
       <TableCell>
-        <div className="max-w-56 truncate" title={c.company || undefined}>
-          {c.company || <Dash />}
-        </div>
+        <EditableCell item={c} field="company" className="max-w-56" />
       </TableCell>
       <TableCell>
         <EditableCell item={c} field="status" className="max-w-56" />
       </TableCell>
       <TableCell>
+        <FollowUpCell item={c} />
+      </TableCell>
+      <TableCell>
         <EmailLink value={c.primaryEmail} className="max-w-64" />
       </TableCell>
       <TableCell>
-        <EmailLink value={c.secondaryEmail} className="max-w-48" />
+        <MailboxCell item={c} />
       </TableCell>
       <TableCell>
         {c.phone ? (
@@ -265,7 +359,7 @@ export function EmailEvaluationTable({ items = [], loading = false, dimmed = fal
   const rest = COLUMNS.filter((c) => c.key !== 'clientName');
   return (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
-      <Table className="min-w-[1900px]" containerClassName={FREEZE_BOX}>
+      <Table className="min-w-[2100px]" containerClassName={FREEZE_BOX}>
         <TableHeader className={FREEZE_HEAD}>
           <TableRow className="hover:bg-transparent">
             <SortableHead label={name.label} column={name.sort} sort={sort} dir={dir} onSort={onSort} className={STICKY_HEAD} />
@@ -305,7 +399,7 @@ export function EmailEvaluationCards({ items = [], loading = false, dimmed = fal
             <span suppressHydrationWarning>{c.date ? formatDate(c.date) : c.dateLabel || 'no date'}</span>
             <MissingBadge item={c} />
           </div>
-          {c.primaryEmail || c.secondaryEmail || c.phone ? (
+          {c.primaryEmail || c.secondaryEmail?.includes('@') || c.phone ? (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
               {c.phone ? (
                 <a href={telHref(c.phone)} className="text-primary">
@@ -313,13 +407,25 @@ export function EmailEvaluationCards({ items = [], loading = false, dimmed = fal
                 </a>
               ) : null}
               {c.primaryEmail ? <EmailLink value={c.primaryEmail} className="min-w-0 text-primary" /> : null}
-              {c.secondaryEmail ? <EmailLink value={c.secondaryEmail} className="min-w-0 text-primary" /> : null}
+              {c.secondaryEmail?.includes('@') ? <EmailLink value={c.secondaryEmail} className="min-w-0 text-primary" /> : null}
             </div>
           ) : null}
           <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-2 gap-y-1 text-sm">
+            <dt className="text-muted-foreground">Company</dt>
+            <dd>
+              <EditableCell item={c} field="company" />
+            </dd>
             <dt className="text-muted-foreground">Status</dt>
             <dd>
               <EditableCell item={c} field="status" />
+            </dd>
+            <dt className="text-muted-foreground">Follow-ups</dt>
+            <dd>
+              <FollowUpCell item={c} />
+            </dd>
+            <dt className="text-muted-foreground">Sent from</dt>
+            <dd>
+              <MailboxCell item={c} />
             </dd>
             <dt className="text-muted-foreground">Notes</dt>
             <dd>
