@@ -71,7 +71,8 @@ export function createApp() {
   app.disable('x-powered-by');
   // Gzip JSON responses: a contacts page or the LinkedIn list is 100-300 KB uncompressed, ~20% of that gzipped.
   app.use(compression());
-  app.use(cors({ origin: true }));
+  // Content-Disposition exposed so the web app can name downloaded exports (it fetches them with the sign-in token).
+  app.use(cors({ origin: true, exposedHeaders: ['Content-Disposition'] }));
   app.use(express.json({ limit: '5mb' }));
 
   // Reports the database state too: a ping fails when the connection is down, so monitors see it.

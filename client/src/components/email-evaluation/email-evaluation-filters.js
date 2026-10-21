@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DownloadLink } from '@/components/download-link';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Default direction per sortable column (the API's SORTS); the first click on a header uses it.
@@ -193,9 +194,9 @@ export function EmailEvaluationToolbar({ params, setParams, clearFilters, active
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="outline" size="sm">
-              <a href={exportHref} download>
+              <DownloadLink href={exportHref}>
                 <Download /> Export
-              </a>
+              </DownloadLink>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Download this view as a spreadsheet (.xlsx)</TooltipContent>

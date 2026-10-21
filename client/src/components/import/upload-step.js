@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { DownloadLink } from '@/components/download-link';
 import { DisabledHint, Tip } from '@/components/import/tips';
 
 const ACCEPT = '.xlsx,.xlsm,.csv';
@@ -173,9 +174,9 @@ export function UploadStep({ onFile, onLink, pending, linkPending, error, linkEr
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <Tip content="Blank workbook with the expected column names">
           <Button asChild variant="outline" size="sm">
-            <a href={api.imports.templateUrl} download>
+            <DownloadLink href={api.imports.templateUrl}>
               <Download /> Download template
-            </a>
+            </DownloadLink>
           </Button>
         </Tip>
         <p className="text-muted-foreground">

@@ -19,21 +19,22 @@ import { useLogSend, useRemoveRow, useUndoSend, useUpdateRow } from '@/component
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 
-// The sheet's columns in the sheet's order (minus the second STATUS), plus the tab the row came from.
+// The sheet's columns (minus the second STATUS): phone and email first, then the mailbox it was sent from
+// (the sheet's SECONDARY EMAIL), and the follow-up sends at the end. Row below follows this order.
 const COLUMNS = [
   { key: 'date', label: 'Date', sort: 'date' },
   { key: 'evaluatedFor', label: 'Evaluated for', sort: 'evaluatedFor' },
   { key: 'clientName', label: 'Client name', sort: 'clientName' },
   { key: 'company', label: 'Company', sort: 'company' },
   { key: 'status', label: 'Status', sort: 'status' },
-  { key: 'nextFollowUpAt', label: 'Follow-ups', sort: 'nextFollowUpAt' },
-  { key: 'primaryEmail', label: 'Primary email', sort: 'primaryEmail' },
-  { key: 'secondaryEmail', label: 'Secondary email' },
   { key: 'phone', label: 'Phone no' },
+  { key: 'primaryEmail', label: 'Email', sort: 'primaryEmail' },
+  { key: 'secondaryEmail', label: 'Sent email' },
   { key: 'notes', label: 'Notes' },
   { key: 'followUp', label: 'Follow up' },
   { key: 'followUpDate', label: 'Date of follow up', sort: 'followUpDate' },
   { key: 'tab', label: 'Tab', sort: 'tab' },
+  { key: 'nextFollowUpAt', label: 'Follow-ups', sort: 'nextFollowUpAt' },
 ];
 
 // The first column stays put while the rest scrolls sideways.
@@ -111,14 +112,18 @@ const CHANNEL_LABELS = { email: 'Email', text: 'Text', whatsapp: 'WhatsApp', cal
 // Same rule as the API (services/emailEvaluation.js): Reservations tabs are not followed up, sheet tabs by email only.
 const channelsFor = (tab) => (/reservation/i.test(tab || '') ? [] : tab ? ['email'] : Object.keys(CHANNEL_LABELS));
 
-/** "Sent 3/5 · 2 Oct" + when the next send is due (10 working days on), and a menu to log the next send. */
+/** "Sent 3/5 · 2 Oct" + when the next send is due (10 working days on), and a menu to log the next send on a date (today by default). */
 function FollowUpCell({ item }) {
   const log = useLogSend();
   const undo = useUndoSend();
+  const [date, setDate] = useState('');
   const channels = channelsFor(item.tab);
   if (!channels.length) return <Dash />;
   const n = item.sentCount || 0;
-  const due = item.nextFollowUpAt && isoDate(item.nextFollowUpAt) <= zonedDateIso();
+  const today = zonedDateIso();
+  const on = date || today;
+  const onLabel = on === today ? 'today' : formatDate(on);
+  const due = item.nextFollowUpAt && isoDate(item.nextFollowUpAt) <= today;
   const lastCrm = item.sends?.length ? item.sends[item.sends.length - 1] : null;
   return (
     <div className="flex items-center gap-2">
@@ -135,19 +140,27 @@ function FollowUpCell({ item }) {
           <p className="text-xs text-muted-foreground">{n >= MAX_SENDS ? 'all sent' : 'stopped (booked)'}</p>
         ) : null}
       </div>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={(open) => open && setDate('')}>
         <DropdownMenuTrigger asChild>
           <Button size="icon-sm" variant={due ? 'default' : 'outline'} disabled={log.isPending || undo.isPending} aria-label="Log a follow-up send">
             <Send />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-60">
           {n < MAX_SENDS ? (
-            channels.map((ch) => (
-              <DropdownMenuItem key={ch} onSelect={() => log.mutate({ id: item._id, channel: ch }, { onSuccess: () => toast.success(`Sent ${n + 1} logged (${CHANNEL_LABELS[ch]})${n + 1 < MAX_SENDS ? ' - next one due in 10 working days' : ''}`) })}>
-                <Send /> Sent {n + 1} by {CHANNEL_LABELS[ch]}, today
-              </DropdownMenuItem>
-            ))
+            <>
+              <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+                Sent on
+                {/* keys stay in the input (the menu would take them for type-ahead) */}
+                <Input type="date" value={on} max={today} onChange={(e) => setDate(e.target.value)} onKeyDown={(e) => e.stopPropagation()} className="h-8 flex-1" aria-label="Date sent" />
+              </label>
+              <DropdownMenuSeparator />
+              {channels.map((ch) => (
+                <DropdownMenuItem key={ch} onSelect={() => log.mutate({ id: item._id, channel: ch, date: on }, { onSuccess: () => toast.success(`Sent ${n + 1} logged (${CHANNEL_LABELS[ch]}, ${onLabel})${n + 1 < MAX_SENDS ? ' - next one due 10 working days later' : ''}`) })}>
+                  <Send /> Sent {n + 1} by {CHANNEL_LABELS[ch]}, {onLabel}
+                </DropdownMenuItem>
+              ))}
+            </>
           ) : (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">All {MAX_SENDS} sends are done</p>
           )}
@@ -301,15 +314,6 @@ function Row({ item: c, tabs }) {
         <EditableCell item={c} field="status" className="max-w-56" />
       </TableCell>
       <TableCell>
-        <FollowUpCell item={c} />
-      </TableCell>
-      <TableCell>
-        <EmailLink value={c.primaryEmail} className="max-w-64" />
-      </TableCell>
-      <TableCell>
-        <MailboxCell item={c} />
-      </TableCell>
-      <TableCell>
         {c.phone ? (
           <a href={telHref(c.phone)} className="whitespace-nowrap hover:underline">
             {c.phone}
@@ -317,6 +321,12 @@ function Row({ item: c, tabs }) {
         ) : (
           <Dash />
         )}
+      </TableCell>
+      <TableCell>
+        <EmailLink value={c.primaryEmail} className="max-w-64" />
+      </TableCell>
+      <TableCell>
+        <MailboxCell item={c} />
       </TableCell>
       <TableCell>
         <EditableCell item={c} field="notes" className="max-w-80" multiline />
@@ -328,6 +338,9 @@ function Row({ item: c, tabs }) {
         <EditableCell item={c} field="followUpDate" className="max-w-48" />
       </TableCell>
       <TableCell className="text-sm text-muted-foreground">{c.tab || 'CRM'}</TableCell>
+      <TableCell>
+        <FollowUpCell item={c} />
+      </TableCell>
       <TableCell className="text-right">
         <RowActions item={c} tabs={tabs} />
       </TableCell>
@@ -419,11 +432,7 @@ export function EmailEvaluationCards({ items = [], loading = false, dimmed = fal
             <dd>
               <EditableCell item={c} field="status" />
             </dd>
-            <dt className="text-muted-foreground">Follow-ups</dt>
-            <dd>
-              <FollowUpCell item={c} />
-            </dd>
-            <dt className="text-muted-foreground">Sent from</dt>
+            <dt className="text-muted-foreground">Sent email</dt>
             <dd>
               <MailboxCell item={c} />
             </dd>
@@ -438,6 +447,10 @@ export function EmailEvaluationCards({ items = [], loading = false, dimmed = fal
             <dt className="text-muted-foreground">Follow-up date</dt>
             <dd>
               <EditableCell item={c} field="followUpDate" />
+            </dd>
+            <dt className="text-muted-foreground">Follow-ups</dt>
+            <dd>
+              <FollowUpCell item={c} />
             </dd>
           </dl>
         </li>

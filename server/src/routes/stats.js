@@ -4,11 +4,13 @@ import { Contact } from '../models/Contact.js';
 import { EmailEvaluation } from '../models/EmailEvaluation.js';
 import { ImportBatch } from '../models/ImportBatch.js';
 import { Reminder } from '../models/Reminder.js';
+import { User } from '../models/User.js';
 import { PRIORITY_KEYS, STAGE_KEYS } from '../fields.js';
 import { addDays, todayUtc } from '../lib/dates.js';
 import { HttpError } from '../lib/errors.js';
 import { memo } from '../lib/cache.js';
-import { personSummary, teamBoard } from '../services/personal.js';
+import { emailSummary, personSummary, teamBoard } from '../services/personal.js';
+import { dashboardKind } from '../services/users.js';
 import { MAX_RANGE_DAYS, dayKey, dayRange, getRangeReport, getReport, history, shiftDay, spanDays } from '../services/dailyReport.js';
 
 export const statsRouter = Router();
@@ -80,11 +82,13 @@ statsRouter.get('/me', async (req, res) => {
   const isAdmin = req.user?.role === 'admin';
   const wanted = isAdmin && req.query.user ? String(req.query.user) : req.user?._id ? String(req.user._id) : '';
   if (!mongoose.isValidObjectId(wanted)) throw new HttpError(400, 'Sign in as a team member to see a personal dashboard');
+  // Someone on the Email Evaluation sheet (services/users.js) gets their follow-up sends instead of calls.
+  const dashboard = dashboardKind((await User.findById(wanted).select('username').lean())?.username);
   const [person, team] = await Promise.all([
-    memo(`me:${wanted}:${from}:${to}`, 10_000, () => personSummary(from, to, wanted)),
+    dashboard === 'email' ? memo(`me-email:${wanted}:${from}:${to}`, 10_000, async () => ({ email: await emailSummary(from, to, wanted) })) : memo(`me:${wanted}:${from}:${to}`, 10_000, () => personSummary(from, to, wanted)),
     isAdmin ? memo(`team:${from}:${to}`, 10_000, () => teamBoard(from, to)) : null,
   ]);
-  res.json({ from, to, today, userId: wanted, ...person, team });
+  res.json({ from, to, today, userId: wanted, dashboard, ...person, team });
 });
 
 const pad2 = (n) => String(n).padStart(2, '0');

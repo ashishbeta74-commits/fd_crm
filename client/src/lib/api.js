@@ -85,6 +85,36 @@ export function setCachedUser(token, user) {
   }
 }
 
+/**
+ * Download a file from the API (the exports). A plain link cannot send the sign-in token, so the API
+ * answered "Please sign in"; this fetches with it and saves the file under the name the API gives.
+ */
+export async function downloadFile(url, fallbackName = 'export.xlsx') {
+  const token = getToken();
+  let res;
+  try {
+    res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  } catch {
+    throw new ApiError(0, 'Cannot reach the API. Is the server running (npm run dev)?');
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    let message = `${res.status} ${res.statusText}`;
+    try {
+      message = JSON.parse(text).error || message;
+    } catch {}
+    if (res.status === 401 && token) setToken('');
+    throw new ApiError(res.status, message);
+  }
+  const name = /filename="?([^";]+)"?/i.exec(res.headers.get('content-disposition') || '')?.[1] || fallbackName;
+  const href = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), { href, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 10_000);
+}
+
 async function request(path, { method = 'GET', body, formData, signal } = {}) {
   const headers = {};
   const token = getToken();
@@ -162,6 +192,7 @@ export const api = {
     editActivity: (id, activityId, body) => request(`/contacts/${id}/activities/${activityId}`, { method: 'PATCH', body }),
     removeActivity: (id, activityId) => request(`/contacts/${id}/activities/${activityId}`, { method: 'DELETE' }),
     exportUrl: (params) => `${BASE}/contacts/export${toQuery(params)}`,
+    prospectsExportUrl: `${BASE}/contacts/export/prospects`,
   },
 
   imports: {

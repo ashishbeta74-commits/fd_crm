@@ -273,6 +273,7 @@ emailEvaluationRouter.post('/:id/sends', async (req, res) => {
   if (sentCount >= MAX_SENDS) throw new HttpError(400, `All ${MAX_SENDS} sends are done`);
   const date = body.date ? parseDate(body.date) : todayUtc();
   if (!date) throw new HttpError(400, 'Date not recognised (use YYYY-MM-DD)');
+  if (date > todayUtc()) throw new HttpError(400, 'The send date cannot be in the future');
   doc.sends.push({ n: sentCount + 1, date, channel: body.channel, by: who(req), at: new Date() });
   Object.assign(doc, followUpState(doc), { editedAt: new Date(), updatedBy: who(req) });
   await doc.save();

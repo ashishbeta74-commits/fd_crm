@@ -26,6 +26,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useMeta } from '@/hooks/use-meta';
+import { DownloadLink } from '@/components/download-link';
 import { BOOKING_OPTIONS, FOLLOW_UP_OPTIONS, STAR_OPTIONS } from '@/components/contacts/list/contact-filters';
 
 // Radix Select items cannot be '', so "no filter" needs a sentinel that no real value can collide with.
@@ -495,13 +496,24 @@ export function ContactsToolbar({ params, setParams, clearFilters, filterCount, 
         <Tooltip>
           <TooltipTrigger asChild>
             <Button asChild variant="outline">
-              <a href={exportHref} download>
+              <DownloadLink href={exportHref}>
                 <Download />
                 Export
-              </a>
+              </DownloadLink>
             </Button>
           </TooltipTrigger>
           <TooltipContent>Download the current view as .xlsx</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild variant="outline">
+              <DownloadLink href={api.contacts.prospectsExportUrl}>
+                <Download />
+                Export prospects
+              </DownloadLink>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Every prospect in one .xlsx: an &quot;All prospects&quot; tab, then one tab per team member</TooltipContent>
         </Tooltip>
         <Button asChild variant="outline">
           <Link href="/import">

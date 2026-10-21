@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, CalendarCheck, CalendarPlus, ListChecks, Mail, MessageSquare, PhoneCall, PhoneOff, PhoneMissed, Sparkles, ThumbsDown, UserCheck, Users, Voicemail } from 'lucide-react';
+import { ArrowRight, Building2, CalendarCheck, CalendarPlus, ListChecks, Mail, MailCheck, MessageSquare, PhoneCall, PhoneOff, PhoneMissed, Send, Sparkles, ThumbsDown, UserCheck, Users, Voicemail } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +15,7 @@ import { EmptyState, LIST_ROW, SectionCard } from '@/components/dashboard/sectio
 import { DashboardError, DashboardSkeleton, TILE_GRID } from '@/components/dashboard/dashboard-states';
 import { api, qk } from '@/lib/api';
 import { livePoll } from '@/lib/live';
-import { formatDateTime } from '@/lib/format';
+import { formatDate, formatDateTime } from '@/lib/format';
 import { zonedDayAt } from '@/lib/tz';
 import { cn } from '@/lib/utils';
 
@@ -59,10 +59,11 @@ export function MyDashboard() {
   const selected = data?.team?.find((p) => p.id === data.userId);
   const name = isAdmin && person && selected ? selected.name : 'you';
   const whose = name === 'you' ? 'My' : `${name}'s`;
+  const email = data?.dashboard === 'email';
 
   return (
     <div className="space-y-6">
-      <PageHeader title={`${whose} dashboard`} description={`What ${name === 'you' ? 'you' : name} did - calls, prospects, not interested and more. Counted from the changes made while signed in.`}>
+      <PageHeader title={`${whose} dashboard`} description={`What ${name === 'you' ? 'you' : name} did - ${email ? 'Email Evaluation follow-ups sent' : 'calls, prospects, not interested and more'}. Counted from the changes made while signed in.`}>
         {isAdmin && data?.team ? (
           <Select value={person || data.userId} onValueChange={(v) => setPerson(v === user?._id ? '' : v)}>
             <SelectTrigger size="sm" className="w-44" aria-label="Team member">
@@ -94,12 +95,18 @@ export function MyDashboard() {
         <DashboardError title="Couldn't load your dashboard" message={error?.message} onRetry={() => refetch()} busy={isFetching} />
       ) : (
         <div className={cn('space-y-6 transition-opacity', isFetching && data && 'opacity-80')}>
-          <Tiles counts={data.counts} />
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-            <Feed feed={data.feed} className="xl:col-span-3" />
-            <Outcomes counts={data.counts} className="xl:col-span-2" />
-          </div>
-          <WorkspaceActivity counts={data.workspaces} feed={data.workspaceFeed} />
+          {email ? (
+            <EmailWork email={data.email} />
+          ) : (
+            <>
+              <Tiles counts={data.counts} />
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+                <Feed feed={data.feed} className="xl:col-span-3" />
+                <Outcomes counts={data.counts} className="xl:col-span-2" />
+              </div>
+              <WorkspaceActivity counts={data.workspaces} feed={data.workspaceFeed} />
+            </>
+          )}
           {data.team ? <TeamTable team={data.team} selectedId={data.userId} onPick={(id) => setPerson(id === user?._id ? '' : id)} /> : null}
           <p className="text-xs text-muted-foreground">
             Counts start on 25 Sep 2026, when the CRM began recording who made each change. Sheet syncs are not counted for anyone.
@@ -122,6 +129,52 @@ function Tiles({ counts }) {
       <StatTile label="Follow-ups done" value={counts.followUps} icon={CalendarPlus} accent="orange" />
       <StatTile label="Emails sent" value={counts.emails} icon={Mail} accent="pink" />
     </div>
+  );
+}
+
+// ---------- Email Evaluation: for the people who work that sheet (dashboard: 'email' in the server's team list) ----------
+
+const CHANNEL_LABELS = { email: 'email', text: 'text', whatsapp: 'WhatsApp', call: 'call' };
+
+function EmailWork({ email }) {
+  return (
+    <>
+      <div className={TILE_GRID}>
+        <StatTile label="Follow-ups sent" value={email.sends} icon={Send} accent="blue" caption="sends logged (Sent 2 … Sent 5)" />
+        <StatTile label="Clients followed up" value={email.rows} icon={MailCheck} accent="green" caption="different rows" />
+        <StatTile label="Follow-ups due" value={email.due} icon={CalendarPlus} accent="orange" tone={email.due ? 'destructive' : undefined} caption="whole sheet, due now" href="/email-evaluation?due=yes&sort=nextFollowUpAt&dir=asc" />
+        <StatTile label="No company" value={email.noCompany} icon={Building2} accent="slate" caption="rows missing a company name" href="/email-evaluation?company=missing" />
+      </div>
+      <SectionCard title="Follow-ups sent">
+        {email.feed.length ? (
+          <ol className="-my-2 max-h-[32rem] overflow-y-auto">
+            {email.feed.map((s, i) => (
+              <li key={`${s.rowId}-${s.at}-${i}`}>
+                <Link href={`/email-evaluation?q=${encodeURIComponent(s.clientName || '')}`} className={cn(LIST_ROW, 'group flex items-start gap-3')}>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {s.clientName || '(no name)'}
+                      {s.company ? <span className="font-normal text-muted-foreground"> · {s.company}</span> : null}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Sent {s.n} by {CHANNEL_LABELS[s.channel] || s.channel} on {formatDate(s.date)}
+                      {s.tab ? <span> · {s.tab}</span> : null}
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{formatDateTime(s.at)}</span>
+                  <ArrowRight className="mt-0.5 size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <EmptyState>
+            <Mail className="size-5" aria-hidden="true" />
+            No follow-ups logged in this period yet
+          </EmptyState>
+        )}
+      </SectionCard>
+    </>
   );
 }
 

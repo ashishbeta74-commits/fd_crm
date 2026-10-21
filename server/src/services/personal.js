@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { Contact } from '../models/Contact.js';
 import { User } from '../models/User.js';
 import { WorkspaceEvent } from '../models/WorkspaceEvent.js';
+import { EmailEvaluation } from '../models/EmailEvaluation.js';
+import { todayUtc } from '../lib/dates.js';
 import { dayRange } from './dailyReport.js';
 
 // Per-person numbers for "My dashboard": what each team member did between two New York days, read from
@@ -175,4 +177,31 @@ export async function personSummary(from, to, userId) {
   const [counts, feed, wsCounts, wsFeed] = await Promise.all([peopleCounts(from, to, id), personFeed(from, to, id), workspaceCounts(from, to, id), workspaceFeed(from, to, id)]);
   const { workspaces, ...c } = withWorkspaces(counts.get(String(id)), wsCounts.get(String(id)));
   return { counts: c, feed, workspaces, workspaceFeed: wsFeed };
+}
+
+/**
+ * "My dashboard" for someone who works the Email Evaluation sheet (TEAM `dashboard: 'email'`, services/users.js):
+ * the follow-up sends they logged in the span (sends carry the display name of who logged them), newest first,
+ * plus what is waiting for the whole team: rows due a send now and rows with no company.
+ */
+export async function emailSummary(from, to, userId) {
+  const start = dayRange(from).start;
+  const end = dayRange(to).end;
+  const user = await User.findById(userId).select('displayName username').lean();
+  const names = [user?.displayName, user?.username].filter(Boolean);
+  const mine = { by: { $in: names }, at: { $gte: start, $lt: end } };
+  const [feed, due, noCompany] = await Promise.all([
+    EmailEvaluation.aggregate([
+      { $match: { sends: { $elemMatch: mine } } },
+      { $unwind: '$sends' },
+      { $match: { 'sends.by': mine.by, 'sends.at': mine.at } },
+      { $sort: { 'sends.at': -1 } },
+      { $project: { _id: 0, rowId: '$_id', clientName: 1, company: 1, tab: 1, n: '$sends.n', channel: '$sends.channel', date: '$sends.date', at: '$sends.at' } },
+    ]),
+    EmailEvaluation.countDocuments({ nextFollowUpAt: { $ne: null, $lte: todayUtc() } }),
+    EmailEvaluation.countDocuments({ company: { $in: ['', null] } }),
+  ]);
+  const byChannel = {};
+  for (const s of feed) byChannel[s.channel] = (byChannel[s.channel] || 0) + 1;
+  return { sends: feed.length, rows: new Set(feed.map((s) => String(s.rowId))).size, byChannel, due, noCompany, feed: feed.slice(0, 200) };
 }

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { Contact, REPEATABLE_STAGES, isImportActivity, normalizeTags, stageAttempt } from '../models/Contact.js';
 import { Reminder } from '../models/Reminder.js';
+import { User } from '../models/User.js';
 import { SheetRating } from '../models/SheetRating.js';
 import { areaCodeRegex } from '../lib/areaCodes.js';
 import { CATEGORY_KEYS, FIELDS, PRIORITY_KEYS, STAGE_KEYS, TEXT_FIELDS, categoryLabel, priorityLabel, stageLabel } from '../fields.js';
@@ -301,9 +302,40 @@ contactsRouter.get('/export', async (req, res) => {
   const filter = buildFilter(q, await starredSheets(q.stars));
   const sort = { [q.sort]: q.dir === 'asc' ? 1 : -1, _id: 1 };
   const items = await Contact.find(filter).sort(sort).limit(20000).select('-activities').lean();
-
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Contacts');
+  fillContactSheet(wb.addWorksheet('Contacts'), items);
+  await sendWorkbook(res, wb, `contacts-${isoDate(new Date())}.xlsx`);
+});
+
+// GET /contacts/export/prospects - one file: "All prospects" first, then a tab per team member with the
+// prospects they moved to Prospect (same rule as the list's Stage = Prospect + Person filter).
+contactsRouter.get('/export/prospects', async (_req, res) => {
+  const [items, moves, users] = await Promise.all([
+    Contact.find({ stage: 'prospect' }).sort({ stageChangedAt: -1, _id: 1 }).limit(20000).select('-activities').lean(),
+    Contact.find({ stage: 'prospect' }).select('activities.byId activities.toStage').lean(),
+    User.find({}).select('displayName username userId').sort({ userId: 1 }).lean(),
+  ]);
+  const byContact = new Map(moves.map((c) => [String(c._id), new Set((c.activities || []).filter((a) => a.toStage === 'prospect' && a.byId).map((a) => String(a.byId)))]));
+  const nameOf = new Map(users.map((u) => [String(u._id), u.displayName || u.username]));
+  const madeBy = (c) => [...(byContact.get(String(c._id)) || [])].map((id) => nameOf.get(id)).filter(Boolean).join(', ');
+  const wb = new ExcelJS.Workbook();
+  fillContactSheet(wb.addWorksheet('All prospects'), items, madeBy);
+  for (const u of users) {
+    const mine = items.filter((c) => byContact.get(String(c._id))?.has(String(u._id)));
+    if (mine.length) fillContactSheet(wb.addWorksheet(`${nameOf.get(String(u._id))} (${mine.length})`.replace(/[\\/?*[\]:]/g, '').slice(0, 31)), mine, madeBy);
+  }
+  await sendWorkbook(res, wb, `prospects-${isoDate(new Date())}.xlsx`);
+});
+
+async function sendWorkbook(res, wb, filename) {
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  await wb.xlsx.write(res);
+  res.end();
+}
+
+/** The contact columns (same as the import template) + one row per contact; `madeBy` adds a "Prospect by" column. */
+function fillContactSheet(ws, items, madeBy = null) {
   ws.columns = [
     { header: 'Name', key: 'name', width: 24 },
     { header: 'Email', key: 'email', width: 28 },
@@ -338,6 +370,7 @@ contactsRouter.get('/export', async (req, res) => {
     { header: 'Source Sheet', key: 'sheet', width: 18 },
     { header: 'Source File', key: 'file', width: 24 },
     { header: 'Created', key: 'createdAt', width: 18 },
+    ...(madeBy ? [{ header: 'Prospect by', key: 'madeBy', width: 18 }] : []),
   ];
   ws.getRow(1).font = { bold: true };
   for (const c of items) {
@@ -357,13 +390,10 @@ contactsRouter.get('/export', async (req, res) => {
       sheet: c.source?.sheetName || '',
       file: c.source?.fileName || '',
       createdAt: c.createdAt ? new Date(c.createdAt).toISOString().slice(0, 10) : '',
+      ...(madeBy ? { madeBy: madeBy(c) } : {}),
     });
   }
-  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-  res.setHeader('Content-Disposition', `attachment; filename="contacts-${isoDate(new Date())}.xlsx"`);
-  await wb.xlsx.write(res);
-  res.end();
-});
+}
 
 // ---------- bulk ----------
 const bulkInput = z.object({
