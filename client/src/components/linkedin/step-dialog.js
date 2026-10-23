@@ -11,18 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { LI_STEPS, liStageLabel } from '@/lib/linkedin';
 import { todayIso } from '@/lib/format';
-import { useLinkedinMeta, useLogLinkedinStep } from '@/components/linkedin/use-linkedin';
+import { bulkToast, useBulkLinkedin, useLinkedinMeta, useLogLinkedinStep } from '@/components/linkedin/use-linkedin';
 
 const CUSTOM = '__custom__';
 
 /**
- * "Log a step" for one contact: the date it happened, the extra detail some steps need
+ * "Log a step" for one contact (or for every id in `ids`, the ticked prospects): the date it happened, the extra detail some steps need
  * (need / use case, monthly value) and whether to set the playbook's suggested next action.
  */
-export function StepDialog({ contact, step: stepKey, open, onOpenChange, onDone }) {
+export function StepDialog({ contact, step: stepKey, open, onOpenChange, onDone, ids = null }) {
   const step = LI_STEPS.find((s) => s.key === stepKey) || LI_STEPS[0];
   const { data: meta } = useLinkedinMeta();
   const log = useLogLinkedinStep();
+  const bulk = useBulkLinkedin();
+  const pending = log.isPending || bulk.isPending;
   const li = contact?.linkedin || {};
   const [date, setDate] = useState(todayIso());
   const [need, setNeed] = useState(li.need || '');
@@ -39,6 +41,11 @@ export function StepDialog({ contact, step: stepKey, open, onOpenChange, onDone 
     if (step.requires === 'need') data.need = needValue;
     if (step.requires === 'monthlyValue') data.monthlyValue = Number(value) || 0;
     try {
+      if (ids) {
+        bulkToast(await bulk.mutateAsync({ ids, action: 'step', ...data }), step.label);
+        onOpenChange(false);
+        return;
+      }
       const doc = await log.mutateAsync({ id: contact._id, data });
       toast.success(`${step.label} - now ${liStageLabel(doc.linkedin?.stage)}`);
       onOpenChange(false);
@@ -55,7 +62,7 @@ export function StepDialog({ contact, step: stepKey, open, onOpenChange, onDone 
           <DialogHeader>
             <DialogTitle>{step.label}</DialogTitle>
             <DialogDescription className="wrap-break-word">
-              {contact?.name || 'This contact'} moves to <strong>{liStageLabel(step.stage)}</strong>.
+              {ids ? `All ${ids.length} ticked prospects` : contact?.name || 'This contact'} {ids ? 'move' : 'moves'} to <strong>{liStageLabel(step.stage)}</strong>.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
@@ -108,12 +115,12 @@ export function StepDialog({ contact, step: stepKey, open, onOpenChange, onDone 
             </label>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={log.isPending}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
               Cancel
             </Button>
-            <Button type="submit" disabled={log.isPending || (step.requires === 'need' && !needValue) || (step.requires === 'monthlyValue' && !value)}>
-              {log.isPending ? <Loader2 className="animate-spin" /> : null}
-              Log it
+            <Button type="submit" disabled={pending || (step.requires === 'need' && !needValue) || (step.requires === 'monthlyValue' && !value)}>
+              {pending ? <Loader2 className="animate-spin" /> : null}
+              {ids ? `Log it for ${ids.length}` : 'Log it'}
             </Button>
           </DialogFooter>
         </form>

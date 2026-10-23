@@ -20,7 +20,7 @@ import { FILTER_KEYS, LinkedinToolbar, SORTS, useLinkedinParams } from '@/compon
 import { LinkedinStats } from '@/components/linkedin/linkedin-stats';
 import { LinkedinCards, LinkedinTable } from '@/components/linkedin/linkedin-table';
 import { Playbook } from '@/components/linkedin/playbook';
-import { useBulkLinkedin } from '@/components/linkedin/use-linkedin';
+import { LinkedinSelectionContext, useBulkLinkedin } from '@/components/linkedin/use-linkedin';
 
 const ENTER = 'motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300';
 
@@ -198,7 +198,8 @@ export function LinkedinView() {
             </p>
           </div>
           {selection.ids.length ? <BulkBar ids={selection.ids} onDone={selection.clear} /> : null}
-          {content}
+          {selection.ids.length > 1 ? <p className="-mt-3 text-xs text-muted-foreground">Any action on a ticked prospect (status, log / remove a step, clear, delete) goes to all {selection.ids.length} ticked ones.</p> : null}
+          <LinkedinSelectionContext.Provider value={selection}>{content}</LinkedinSelectionContext.Provider>
         </>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, ChevronsUpDown, ExternalLink, ListChecks, MoreHorizontal, Pencil, StickyNote, Undo2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Eraser, ExternalLink, ListChecks, MoreHorizontal, Pencil, StickyNote, Trash2, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDate, relativeDay, timeAgo } from '@/lib/format';
@@ -17,9 +17,10 @@ import { PriorityBadge } from '@/components/badges';
 import { LinkedInIconLink, linkedInHref } from '@/components/contacts/list/linkedin-link';
 import { FROZEN_TABLE_CLASS, FrozenResizeHandle, frozenCell, frozenHead, useFrozenColumns } from '@/components/ui/frozen-columns';
 import { NoteDialog } from '@/components/contacts/log-call-dialog';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { LinkedinDialog } from '@/components/linkedin/linkedin-dialog';
 import { StepDialog } from '@/components/linkedin/step-dialog';
-import { useUpdateLinkedin } from '@/components/linkedin/use-linkedin';
+import { bulkToast, useBulkLinkedin, useDeleteContacts, useTickedIds, useUpdateLinkedin } from '@/components/linkedin/use-linkedin';
 
 const EMPTY_SET = new Set();
 const Dash = () => <span className="text-muted-foreground">—</span>;
@@ -38,10 +39,13 @@ export function LinkedinStageBadge({ stage, className, size = 'sm' }) {
 /** Inline work-status picker (Not started / In progress / Waiting / Done); saves straight away. */
 export function LinkedinStatusSelect({ contact, className, size = 'sm' }) {
   const update = useUpdateLinkedin();
+  const bulk = useBulkLinkedin();
+  const ticked = useTickedIds(contact._id);
   const value = liStatus(contact);
   const def = LI_STATUS_MAP[value] || LI_STATUSES[0];
+  const onChange = (status) => (ticked ? bulk.mutate({ ids: ticked, action: 'status', status }, { onSuccess: (r) => bulkToast(r, `Status set to ${LI_STATUS_MAP[status]?.label}`) }) : update.mutate({ id: contact._id, data: { status } }));
   return (
-    <Select value={value} onValueChange={(status) => update.mutate({ id: contact._id, data: { status } })} disabled={update.isPending}>
+    <Select value={value} onValueChange={onChange} disabled={update.isPending || bulk.isPending}>
       <SelectTrigger size={size} className={cn('h-8 gap-1.5', def.badge, className)} aria-label="Status">
         <SelectValue />
       </SelectTrigger>
@@ -82,18 +86,27 @@ export function NextActionCell({ contact }) {
 
 /**
  * Per-prospect actions: "Log step" (the playbook's next step first, then any other), edit all
- * LinkedIn fields, add a note, open the profile / contact.
+ * LinkedIn fields, add a note, open the profile / contact, clear the LinkedIn work, delete.
+ * On a ticked prospect (one of several) the steps, remove-a-step, clear and delete go to all ticked ones.
  */
 export function LinkedinActions({ contact, compact = false, showMenu = true, iconMenu = false }) {
-  const [dialog, setDialog] = useState(null); // { kind: 'step', step } | { kind: 'edit' } | { kind: 'note' }
+  const [dialog, setDialog] = useState(null); // { kind: 'step', step } | { kind: 'edit' } | { kind: 'note' } | { kind: 'reset' } | { kind: 'delete' }
   const update = useUpdateLinkedin();
+  const bulk = useBulkLinkedin();
+  const remove = useDeleteContacts();
+  const ticked = useTickedIds(contact._id);
+  const targets = ticked || [contact._id];
+  const many = ticked ? ` (${ticked.length} ticked)` : '';
   const next = nextStepFor(contact);
   const li = contact.linkedin || {};
   const profile = linkedInHref(contact.contactL1);
-  const logged = loggedSteps(contact);
+  // With several ticked, any step can be removed (the prospects that have it lose it).
+  const logged = ticked ? LI_STEPS.filter((s) => s.field) : loggedSteps(contact);
   // Un-log a step (e.g. a follow logged by mistake): clears its date, so the stage and the counters drop back.
   const removeStep = (step) =>
-    update.mutate(
+    ticked
+      ? bulk.mutate({ ids: ticked, action: 'removeStep', step: step.key }, { onSuccess: (r) => bulkToast(r, `Removed "${step.label}"`) })
+      : update.mutate(
       { id: contact._id, data: removeStepInput(contact, step) },
       { onSuccess: (doc) => toast.success(`Removed "${step.label}" - now ${liStageLabel(doc.linkedin?.stage)}`) },
     );
@@ -113,7 +126,7 @@ export function LinkedinActions({ contact, compact = false, showMenu = true, ico
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
-            <DropdownMenuLabel>Log a step</DropdownMenuLabel>
+            <DropdownMenuLabel>Log a step{many}</DropdownMenuLabel>
             {LI_STEPS.map((s) => (
               <DropdownMenuItem key={s.key} onSelect={() => setDialog({ kind: 'step', step: s.key })} className={cn(next?.key === s.key && 'font-medium')}>
                 {s.label}
@@ -125,15 +138,15 @@ export function LinkedinActions({ contact, compact = false, showMenu = true, ico
                 <DropdownMenuSeparator />
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
-                    <Undo2 /> Remove a logged step
+                    <Undo2 /> Remove a logged step{many}
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="w-56">
                     <DropdownMenuLabel>Logged - click to remove</DropdownMenuLabel>
                     {logged.map((s) => (
-                      <DropdownMenuItem key={s.key} onSelect={() => removeStep(s)} disabled={update.isPending}>
+                      <DropdownMenuItem key={s.key} onSelect={() => removeStep(s)} disabled={update.isPending || bulk.isPending}>
                         {s.label}
                         <span className="ml-auto text-[10px] text-muted-foreground" suppressHydrationWarning>
-                          {formatDate(li[s.field])}
+                          {li[s.field] ? formatDate(li[s.field]) : ''}
                         </span>
                       </DropdownMenuItem>
                     ))}
@@ -160,13 +173,40 @@ export function LinkedinActions({ contact, compact = false, showMenu = true, ico
                 <ExternalLink /> Open contact
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => setDialog({ kind: 'reset' })}>
+              <Eraser /> Clear LinkedIn work{many}
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => setDialog({ kind: 'delete' })}>
+              <Trash2 /> Delete contact{many}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         )}
       </div>
-      {dialog?.kind === 'step' ? <StepDialog key={`${contact._id}-${dialog.step}-${li.stage}`} contact={contact} step={dialog.step} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
+      {dialog?.kind === 'step' ? <StepDialog key={`${contact._id}-${dialog.step}-${li.stage}`} contact={contact} step={dialog.step} ids={ticked} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
       {dialog?.kind === 'edit' ? <LinkedinDialog key={`${contact._id}-edit`} contact={contact} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
       {dialog?.kind === 'note' ? <NoteDialog key={`${contact._id}-note`} contact={contact} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
+      <ConfirmDialog
+        open={dialog?.kind === 'reset'}
+        onOpenChange={(v) => !v && setDialog(null)}
+        title={ticked ? `Clear the LinkedIn work of ${ticked.length} prospects?` : 'Clear the LinkedIn work?'}
+        description="Steps, connection status, next action, need, value, notes and status go back to untouched, and the LinkedIn entries leave the history. Calls and the contact itself are kept."
+        confirmLabel="Clear"
+        destructive
+        pending={bulk.isPending}
+        onConfirm={() => bulk.mutate({ ids: targets, action: 'reset' }, { onSuccess: (r) => (bulkToast(r, 'LinkedIn work cleared'), setDialog(null)) })}
+      />
+      <ConfirmDialog
+        open={dialog?.kind === 'delete'}
+        onOpenChange={(v) => !v && setDialog(null)}
+        title={ticked ? `Delete ${ticked.length} contacts?` : `Delete ${contact.name || 'this contact'}?`}
+        description="They are removed from the whole CRM (calls, notes and LinkedIn), not only from this list. A contact still in a linked sheet comes back on the next sync."
+        confirmLabel="Delete"
+        destructive
+        pending={remove.isPending}
+        onConfirm={() => remove.mutate(targets, { onSuccess: (r) => (toast.success(`Deleted ${r.deleted} contact${r.deleted === 1 ? '' : 's'}`), setDialog(null)) })}
+      />
     </>
   );
 }

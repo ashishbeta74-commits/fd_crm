@@ -463,7 +463,7 @@ linkedinRouter.post('/contacts/:id/step', async (req, res) => {
 // ---------- bulk ----------
 const bulkInput = z.object({
   ids: z.array(z.string()).min(1).max(500),
-  action: z.enum(['persona', 'nextAction', 'override', 'step', 'priority', 'status']),
+  action: z.enum(['persona', 'nextAction', 'override', 'step', 'removeStep', 'reset', 'priority', 'status']),
   status: z.enum(LI_STATUS_KEYS).optional(),
   persona: z.string().trim().max(120).optional(),
   nextAction: z.string().trim().max(200).optional(),
@@ -471,16 +471,53 @@ const bulkInput = z.object({
   outcomeOverride: z.enum(['', ...LI_OVERRIDE_KEYS]).optional(),
   step: z.enum(LI_STEPS.map((s) => s.key)).optional(),
   date: z.string().optional(),
+  // 'step' extras, as in the one-contact step dialog
+  need: z.string().trim().max(200).optional(),
+  monthlyValue: z.number().min(0).max(10_000_000).optional(),
+  note: z.string().trim().max(2000).optional(),
+  suggestNext: z.boolean().default(true),
   priority: z.enum(['', ...PRIORITY_KEYS]).optional(),
 });
 
+// Everything a person logs on the LinkedIn side, back at its default ('reset' = untouched again).
+const LI_RESET = { persona: '', dateFollowed: null, dateEngaged: null, requestSentAt: null, connectionStatus: '', acceptedAt: null, welcomeSentAt: null, firstReplyAt: null, need: '', needAt: null, offerSentAt: null, trialRideDate: null, convertedDate: null, monthlyValue: 0, outcomeOverride: '', nextAction: '', nextActionDate: null, notes: '', status: 'not_started' };
+
+/** Un-log a step: clear its date (and the connection status it set), like the client's removeStepInput. */
+function removeStepInput(doc, step) {
+  const li = doc.linkedin || {};
+  const field = Object.keys(step.sets).find((k) => step.sets[k] === 'date');
+  if (!field || !li[field]) return null;
+  const input = { [field]: null };
+  if (step.key === 'request_sent' && li.connectionStatus === 'pending') input.connectionStatus = '';
+  if (step.key === 'accepted' && li.connectionStatus === 'accepted') input.connectionStatus = li.requestSentAt ? 'pending' : '';
+  return input;
+}
+
 linkedinRouter.post('/bulk', async (req, res) => {
   const body = bulkInput.parse(req.body);
+  if ((body.action === 'step' || body.action === 'removeStep') && !body.step) throw new HttpError(400, 'step is required');
   const docs = await Contact.find({ _id: { $in: body.ids } });
   const results = await runPool(docs, 8, async (doc) => {
     if (body.action === 'step') {
-      if (!body.step) throw new HttpError(400, 'step is required');
-      await logStep(doc, { step: body.step, date: body.date, suggestNext: true });
+      await logStep(doc, { step: body.step, date: body.date, need: body.need, monthlyValue: body.monthlyValue, note: body.note, suggestNext: body.suggestNext });
+      return true;
+    }
+    if (body.action === 'reset') {
+      const before = doc.activities.length;
+      doc.activities = doc.activities.filter((a) => a.type !== 'linkedin');
+      const changes = applyLinkedin(doc, LI_RESET);
+      if (!changes.length && doc.activities.length === before) return false;
+      await doc.save();
+      return true;
+    }
+    if (body.action === 'removeStep') {
+      const step = LI_STEPS.find((s) => s.key === body.step);
+      const input = removeStepInput(doc, step);
+      if (!input) return false;
+      applyLinkedin(doc, input);
+      await doc.save();
+      doc.activities.push({ type: 'linkedin', message: `LinkedIn: removed "${step.label}" → ${liStageLabel(doc.linkedin.stage)}` });
+      await doc.save();
       return true;
     }
     let input;
