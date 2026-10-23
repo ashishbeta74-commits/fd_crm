@@ -33,6 +33,8 @@ const listQuery = z.object({
   // 'yes' = the next follow-up send is due today or overdue
   due: z.enum(['', 'yes']).default(''),
   company: z.enum(['', 'missing']).default(''),
+  // follow-up sends done, comma-separated counts ("4,5")
+  sent: z.string().max(40).default(''),
   sort: z.string().default('date'),
   dir: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -58,6 +60,8 @@ function buildFilter(p) {
   if (p.missing === 'yes') and.push({ missingSince: { $ne: null } });
   if (p.due === 'yes') and.push({ nextFollowUpAt: { $ne: null, $lte: todayUtc() } });
   if (p.company === 'missing') and.push({ company: { $in: ['', null] } });
+  const sent = csv(p.sent).map(Number).filter(Number.isInteger);
+  if (sent.length) and.push({ sentCount: { $in: sent } });
   return and.length ? { $and: and } : {};
 }
 
@@ -93,6 +97,7 @@ emailEvaluationRouter.get('/meta', async (req, res) => {
         $facet: {
           tabs: [{ $group: { _id: '$tab', count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }],
           years: [{ $group: { _id: '$evaluatedFor', count: { $sum: 1 } } }, { $sort: { _id: -1 } }],
+          sent: [{ $match: { sentCount: { $gt: 0 } } }, { $group: { _id: '$sentCount', count: { $sum: 1 } } }],
           counts: [
             {
               $group: {
@@ -118,6 +123,7 @@ emailEvaluationRouter.get('/meta', async (req, res) => {
   res.json({
     tabs: (facet?.tabs || []).map((t) => ({ tab: t._id || '', count: t.count })),
     years: (facet?.years || []).map((y) => ({ year: y._id || '', count: y.count })),
+    sent: (facet?.sent || []).map((x) => ({ n: x._id, count: x.count })),
     counts,
     sheet: settings,
     autoSync: autoSyncInfo(),

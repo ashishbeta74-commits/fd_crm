@@ -14,7 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 // Default direction per sortable column (the API's SORTS); the first click on a header uses it.
 export const SORTS = { date: 'desc', evaluatedFor: 'desc', clientName: 'asc', company: 'asc', status: 'asc', primaryEmail: 'asc', followUpDate: 'asc', nextFollowUpAt: 'asc', updatedAt: 'desc', tab: 'asc' };
-export const FILTER_KEYS = ['q', 'tab', 'evaluatedFor', 'followUp', 'due', 'company', 'from', 'to', 'missing'];
+export const FILTER_KEYS = ['q', 'tab', 'evaluatedFor', 'followUp', 'due', 'company', 'sent', 'from', 'to', 'missing'];
 export const PAGE_SIZES = [25, 50, 100, 200];
 const DEFAULTS = { page: 1, limit: 50, sort: 'date', dir: 'desc' };
 const ALL = '__all__';
@@ -36,6 +36,7 @@ export function parseParams(sp) {
     missing: oneOf(get('missing'), ['yes'], ''),
     due: oneOf(get('due'), ['yes'], ''),
     company: oneOf(get('company'), ['missing'], ''),
+    sent: get('sent'),
     page: page > 0 ? page : 1,
     limit: PAGE_SIZES.includes(limit) ? limit : DEFAULTS.limit,
     sort: oneOf(get('sort'), Object.keys(SORTS), DEFAULTS.sort),
@@ -160,11 +161,13 @@ function DateBound({ label, value, onChange }) {
   );
 }
 
-/** Search + the filters (tab, year evaluated for, follow-up, date range) and the export link. */
+/** Search + the filters (tab, year evaluated for, follow-up, sends done, date range) and the export link. */
 export function EmailEvaluationToolbar({ params, setParams, clearFilters, activeCount, meta }) {
   const commitSearch = useCallback((q) => setParams({ q }), [setParams]);
   const tabOptions = (meta?.tabs || []).map((t) => ({ key: t.tab || 'none', label: t.tab || 'Added in the CRM', count: t.count }));
   const yearOptions = (meta?.years || []).map((y) => ({ key: y.year || 'none', label: y.year || 'Not set', count: y.count }));
+  const sentCounts = Object.fromEntries((meta?.sent || []).map((x) => [x.n, x.count]));
+  const sentOptions = [1, 2, 3, 4, 5].map((n) => ({ key: String(n), label: `Sent ${n}`, count: sentCounts[n] || 0 }));
   const exportHref = api.emailEvaluation.exportUrl({ ...params, page: undefined, limit: undefined });
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -181,7 +184,8 @@ export function EmailEvaluationToolbar({ params, setParams, clearFilters, active
         onChange={(followUp) => setParams({ followUp })}
         allLabel="Any"
       />
-      <SingleFilter label="Next send" options={[{ value: 'yes', label: 'Due now' }]} value={params.due} onChange={(due) => setParams({ due })} allLabel="Any" />
+      <MultiFilter label="Sent" options={sentOptions} value={params.sent} onChange={(sent) => setParams({ sent })} width="w-40" />
+      <SingleFilter label="Next send"options={[{ value: 'yes', label: 'Due now' }]} value={params.due} onChange={(due) => setParams({ due })} allLabel="Any" />
       <SingleFilter label="Company" options={[{ value: 'missing', label: 'Missing' }]} value={params.company} onChange={(company) => setParams({ company })} allLabel="Any" />
       <DateBound label="From" value={params.from} onChange={(from) => setParams({ from })} />
       <DateBound label="To" value={params.to} onChange={(to) => setParams({ to })} />
