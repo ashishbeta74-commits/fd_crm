@@ -304,6 +304,7 @@ export const api = {
     remove: (id) => request(`/email-evaluation/${id}`, { method: 'DELETE' }),
     logSend: (id, body) => request(`/email-evaluation/${id}/sends`, { method: 'POST', body }),
     undoSend: (id) => request(`/email-evaluation/${id}/sends/last`, { method: 'DELETE' }),
+    bulk: (body) => request('/email-evaluation/bulk', { method: 'POST', body }),
     sync: () => request('/email-evaluation/sync', { method: 'POST', body: {} }),
     setSheet: (body) => request('/email-evaluation/sheet', { method: 'PUT', body }),
     exportUrl: (params) => `${BASE}/email-evaluation/export${toQuery(params)}`,

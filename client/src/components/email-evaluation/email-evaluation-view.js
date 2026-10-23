@@ -19,9 +19,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { StatTile } from '@/components/dashboard/stat-tile';
 import { EmailEvaluationDialog } from '@/components/email-evaluation/email-evaluation-dialog';
-import { EmailEvaluationToolbar, PAGE_SIZES, SORTS, useEmailEvaluationParams } from '@/components/email-evaluation/email-evaluation-filters';
+import { useSelection } from '@/components/contacts/list/use-selection';
+import { EmailEvaluationToolbar, FILTER_KEYS, PAGE_SIZES, SORTS, useEmailEvaluationParams } from '@/components/email-evaluation/email-evaluation-filters';
 import { EmailEvaluationCards, EmailEvaluationTable } from '@/components/email-evaluation/email-evaluation-table';
-import { useEmailEvaluationMeta, useSetSheet, useSyncSheet } from '@/components/email-evaluation/use-email-evaluation';
+import { SelectionContext, useEmailEvaluationMeta, useSetSheet, useSyncSheet } from '@/components/email-evaluation/use-email-evaluation';
 
 const ENTER = 'motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300';
 
@@ -216,6 +217,7 @@ function Pagination({ page, pages, limit, total, count, onPage, onLimit }) {
 export function EmailEvaluationView() {
   const { params, setParams, clearFilters, activeCount } = useEmailEvaluationParams();
   const meta = useEmailEvaluationMeta();
+  const selection = useSelection(FILTER_KEYS.map((k) => params[k]).join('|'));
   const { data, error, isPending, isError, isFetching, isPlaceholderData, refetch } = useQuery({
     queryKey: qk.emailEvaluationList(params),
     queryFn: () => api.emailEvaluation.list(params),
@@ -293,9 +295,21 @@ export function EmailEvaluationView() {
           <span>{isPending ? 'Loading rows…' : `${pluralize(total, 'row')}${activeCount ? ' match' : ''}`}</span>
           {isFetching && !isPending ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
         </p>
-        <p className="text-xs text-muted-foreground">Click a company, status, note or follow-up cell to edit it in place.</p>
+        {selection.ids.length ? (
+          <div className="flex items-center gap-2 rounded-md border bg-accent px-2 py-1 text-sm text-accent-foreground">
+            <span>
+              <span className="font-medium">{selection.ids.length} ticked</span>
+              {selection.ids.length > 1 ? ' - a change on a ticked row (status, notes, follow up, mailbox, send, delete) goes to all of them' : ' - tick more rows to change them together'}
+            </span>
+            <Button size="sm" variant="ghost" onClick={selection.clear}>
+              Clear
+            </Button>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Click a company, status, note or follow-up cell to edit it in place. Tick rows to change them together.</p>
+        )}
       </div>
-      {content}
+      <SelectionContext.Provider value={selection}>{content}</SelectionContext.Provider>
     </div>
   );
 }

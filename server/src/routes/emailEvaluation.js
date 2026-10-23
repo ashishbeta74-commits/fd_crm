@@ -269,10 +269,19 @@ const rowOut = (doc) => {
 
 // ---------- follow-up sends ----------
 // Log the next send (Sent 2 ... Sent 5): { channel, date? (defaults to today) }. CRM only, the sheet is not changed.
+const sendInput = z.object({ channel: z.enum(CHANNELS), date: z.string().trim().max(40).optional() });
+
 emailEvaluationRouter.post('/:id/sends', async (req, res) => {
-  const body = z.object({ channel: z.enum(CHANNELS), date: z.string().trim().max(40).optional() }).parse(req.body);
+  const body = sendInput.parse(req.body);
   const doc = await EmailEvaluation.findById(req.params.id);
   if (!doc) throw new HttpError(404, 'Row not found');
+  logSend(doc, body, req);
+  await doc.save();
+  res.status(201).json(rowOut(doc));
+});
+
+/** Push the next send onto the row (throws a 400 when it cannot take one); the caller saves. */
+function logSend(doc, body, req) {
   if (!tracksFollowUps(doc.tab)) throw new HttpError(400, `Rows of the "${doc.tab}" tab are not followed up`);
   if (!channelsFor(doc.tab).includes(body.channel)) throw new HttpError(400, `The "${doc.tab}" tab is followed up by email only`);
   const { sentCount } = followUpState(doc);
@@ -282,26 +291,67 @@ emailEvaluationRouter.post('/:id/sends', async (req, res) => {
   if (date > todayUtc()) throw new HttpError(400, 'The send date cannot be in the future');
   doc.sends.push({ n: sentCount + 1, date, channel: body.channel, by: who(req), at: new Date() });
   Object.assign(doc, followUpState(doc), { editedAt: new Date(), updatedBy: who(req) });
-  await doc.save();
-  res.status(201).json(rowOut(doc));
-});
+}
 
 // Take back the last send logged here (a send read from the sheet's text is changed in the sheet).
 emailEvaluationRouter.delete('/:id/sends/last', async (req, res) => {
   const doc = await EmailEvaluation.findById(req.params.id);
   if (!doc) throw new HttpError(404, 'Row not found');
-  if (!doc.sends.length) throw new HttpError(400, 'No send was logged here for this row');
-  doc.sends.pop();
-  Object.assign(doc, followUpState(doc), { updatedBy: who(req) });
+  undoSend(doc, req);
   await doc.save();
   res.json(rowOut(doc));
 });
+
+function undoSend(doc, req) {
+  if (!doc.sends.length) throw new HttpError(400, 'No send was logged here for this row');
+  doc.sends.pop();
+  Object.assign(doc, followUpState(doc), { updatedBy: who(req) });
+}
 
 // Removes the row here only; a row still in the sheet comes back on the next sync.
 emailEvaluationRouter.delete('/:id', async (req, res) => {
   const r = await EmailEvaluation.findByIdAndDelete(req.params.id);
   if (!r) throw new HttpError(404, 'Row not found');
   res.json({ ok: true });
+});
+
+// ---------- the same change on many rows ----------
+// { ids, action: 'update' (data: fields) | 'send' (channel, date?) | 'undo' | 'delete' }. Rows that cannot
+// take the change (all 5 sent, nothing to undo, ...) are skipped: { done, skipped: [{ id, clientName, error }] }.
+const bulkInput = z.object({
+  ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(500),
+  action: z.enum(['update', 'send', 'undo', 'delete']),
+  data: z.record(z.unknown()).optional(),
+  channel: z.string().optional(),
+  date: z.string().optional(),
+});
+
+emailEvaluationRouter.post('/bulk', async (req, res) => {
+  const { ids, action, data, ...send } = bulkInput.parse(req.body);
+  if (action === 'delete') {
+    const r = await EmailEvaluation.deleteMany({ _id: { $in: ids } });
+    return res.json({ done: r.deletedCount, skipped: [] });
+  }
+  const fields = action === 'update' ? toFields(rowInput.parse(data || {})) : null;
+  const sendBody = action === 'send' ? sendInput.parse(send) : null;
+  const docs = await EmailEvaluation.find({ _id: { $in: ids } });
+  const skipped = [];
+  let done = 0;
+  for (const doc of docs) {
+    try {
+      if (fields) {
+        Object.assign(doc, fields, { editedAt: new Date(), updatedBy: who(req) });
+        Object.assign(doc, followUpState(doc));
+      } else if (sendBody) logSend(doc, sendBody, req);
+      else undoSend(doc, req);
+      await doc.save();
+      done += 1;
+    } catch (err) {
+      if (!(err instanceof HttpError)) throw err;
+      skipped.push({ id: String(doc._id), clientName: doc.clientName, error: err.message });
+    }
+  }
+  res.json({ done, skipped });
 });
 
 // ---------- sheet ----------

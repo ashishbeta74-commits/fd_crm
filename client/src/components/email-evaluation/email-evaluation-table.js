@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown, MoreHorizontal, Pencil, Send, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -13,9 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmailEvaluationDialog } from '@/components/email-evaluation/email-evaluation-dialog';
-import { useLogSend, useRemoveRow, useUndoSend, useUpdateRow } from '@/components/email-evaluation/use-email-evaluation';
+import { SelectionContext, doneToast, useLogSend, useRemoveRow, useTicked, useUndoSend, useUpdateRow } from '@/components/email-evaluation/use-email-evaluation';
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 
@@ -65,7 +66,7 @@ function EmailLink({ value, className }) {
  * team updates most: status, notes, follow up, date of follow up.
  */
 function EditableCell({ item, field, className, multiline = false }) {
-  const update = useUpdateRow();
+  const update = useUpdateRow({ many: true });
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   const value = item[field] || '';
@@ -77,7 +78,7 @@ function EditableCell({ item, field, className, multiline = false }) {
     setEditing(false);
     const next = text.trim();
     if (next === value) return;
-    update.mutate({ id: item._id, data: { [field]: next } }, { onSuccess: () => toast.success('Saved') });
+    update.mutate({ id: item._id, data: { [field]: next } }, { onSuccess: (r) => doneToast(r, 'Saved') });
   };
   const onKeyDown = (e) => {
     if (e.key === 'Enter' && !(multiline && e.shiftKey)) {
@@ -116,6 +117,7 @@ const channelsFor = (tab) => (/reservation/i.test(tab || '') ? [] : tab ? ['emai
 function FollowUpCell({ item }) {
   const log = useLogSend();
   const undo = useUndoSend();
+  const ticked = useTicked(item._id);
   const [date, setDate] = useState('');
   const channels = channelsFor(item.tab);
   if (!channels.length) return <Dash />;
@@ -147,7 +149,8 @@ function FollowUpCell({ item }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60">
-          {n < MAX_SENDS ? (
+          {ticked ? <p className="px-2 py-1.5 text-xs font-medium text-primary">Applies to all {ticked} ticked rows (each gets its next send)</p> : null}
+          {ticked || n < MAX_SENDS ? (
             <>
               <label className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
                 Sent on
@@ -156,15 +159,22 @@ function FollowUpCell({ item }) {
               </label>
               <DropdownMenuSeparator />
               {channels.map((ch) => (
-                <DropdownMenuItem key={ch} onSelect={() => log.mutate({ id: item._id, channel: ch, date: on }, { onSuccess: () => toast.success(`Sent ${n + 1} logged (${CHANNEL_LABELS[ch]}, ${onLabel})${n + 1 < MAX_SENDS ? ' - next one due 10 working days later' : ''}`) })}>
-                  <Send /> Sent {n + 1} by {CHANNEL_LABELS[ch]}, {onLabel}
+                <DropdownMenuItem key={ch} onSelect={() => log.mutate({ id: item._id, channel: ch, date: on }, { onSuccess: (r) => doneToast(r, r?.bulk ? `Next send logged (${CHANNEL_LABELS[ch]}, ${onLabel})` : `Sent ${n + 1} logged (${CHANNEL_LABELS[ch]}, ${onLabel})${n + 1 < MAX_SENDS ? ' - next one due 10 working days later' : ''}`) })}>
+                  <Send /> {ticked ? 'Next send' : `Sent ${n + 1}`} by {CHANNEL_LABELS[ch]}, {onLabel}
                 </DropdownMenuItem>
               ))}
             </>
           ) : (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">All {MAX_SENDS} sends are done</p>
           )}
-          {lastCrm ? (
+          {ticked ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => undo.mutate(item._id, { onSuccess: (r) => doneToast(r, 'Last send taken back') })}>
+                <Undo2 /> Undo the last send logged here
+              </DropdownMenuItem>
+            </>
+          ) : lastCrm ? (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => undo.mutate(item._id, { onSuccess: () => toast.success(`Sent ${lastCrm.n} taken back`) })}>
@@ -189,11 +199,11 @@ const NO_MAILBOX = '__none__';
 
 /** A mailbox dropdown; a cell that holds a real address (or other text) stays as it is. */
 function MailboxCell({ item }) {
-  const update = useUpdateRow();
+  const update = useUpdateRow({ many: true });
   const value = (item.secondaryEmail || '').toUpperCase();
   if (value && !MAILBOXES.some((m) => m.value === value)) return <EmailLink value={item.secondaryEmail} className="max-w-48" />;
   return (
-    <Select value={value || NO_MAILBOX} onValueChange={(v) => update.mutate({ id: item._id, data: { secondaryEmail: v === NO_MAILBOX ? '' : v } }, { onSuccess: () => toast.success('Saved') })} disabled={update.isPending}>
+    <Select value={value || NO_MAILBOX} onValueChange={(v) => update.mutate({ id: item._id, data: { secondaryEmail: v === NO_MAILBOX ? '' : v } }, { onSuccess: (r) => doneToast(r, 'Saved') })} disabled={update.isPending}>
       <SelectTrigger size="sm" className={cn('w-36', !value && 'text-muted-foreground')} aria-label="Sent from mailbox">
         <SelectValue />
       </SelectTrigger>
@@ -213,6 +223,7 @@ function MailboxCell({ item }) {
 function RowActions({ item, compact = false, tabs = [] }) {
   const [dialog, setDialog] = useState(null); // 'edit' | 'delete'
   const remove = useRemoveRow();
+  const ticked = useTicked(item._id);
   return (
     <>
       <div className="flex items-center justify-end gap-1">
@@ -238,7 +249,7 @@ function RowActions({ item, compact = false, tabs = [] }) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => setDialog('delete')}>
-              <Trash2 /> Delete from the CRM
+              <Trash2 /> {ticked ? `Delete all ${ticked} ticked rows` : 'Delete from the CRM'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -247,15 +258,15 @@ function RowActions({ item, compact = false, tabs = [] }) {
       <ConfirmDialog
         open={dialog === 'delete'}
         onOpenChange={(v) => !v && setDialog(null)}
-        title="Delete this row?"
-        description={item.tab ? `It is removed from the CRM only. While it stays in the "${item.tab}" tab of the sheet, the next sync brings it back.` : 'This row was added in the CRM and is not in the sheet; it is gone for good.'}
+        title={ticked ? `Delete ${ticked} ticked rows?` : 'Delete this row?'}
+        description={ticked ? 'They are removed from the CRM only. Rows still in the sheet come back on the next sync; rows added here are gone for good.' : item.tab ? `It is removed from the CRM only. While it stays in the "${item.tab}" tab of the sheet, the next sync brings it back.` : 'This row was added in the CRM and is not in the sheet; it is gone for good.'}
         confirmLabel="Delete"
         destructive
         pending={remove.isPending}
         onConfirm={() =>
           remove.mutate(item._id, {
-            onSuccess: () => {
-              toast.success('Row deleted');
+            onSuccess: (r) => {
+              doneToast(r, r?.bulk ? 'Deleted' : 'Row deleted');
               setDialog(null);
             },
           })
@@ -279,11 +290,12 @@ function MissingBadge({ item }) {
   );
 }
 
-function SortableHead({ label, column, sort, dir, onSort, className }) {
+function SortableHead({ label, column, sort, dir, onSort, className, before = null }) {
   const active = sort === column;
   const Icon = !active ? ChevronsUpDown : dir === 'asc' ? ChevronUp : ChevronDown;
   return (
-    <TableHead aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={className}>
+    <TableHead aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'} className={cn(before && 'space-x-2', className)}>
+      {before ? <span className="inline-flex translate-y-[2px]">{before}</span> : null}
       <button type="button" onClick={() => onSort?.(column)} className={cn('-mx-1 inline-flex h-8 items-center gap-1 rounded-sm px-1 text-xs font-medium tracking-wide uppercase outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50', active ? 'text-foreground' : 'text-muted-foreground')}>
         {label}
         <Icon className={cn('size-3.5', !active && 'opacity-50')} aria-hidden />
@@ -292,11 +304,28 @@ function SortableHead({ label, column, sort, dir, onSort, className }) {
   );
 }
 
+/** The tick box of a row (rows ticked together take the same change). */
+function Tick({ item }) {
+  const sel = useContext(SelectionContext);
+  if (!sel) return null;
+  return <Checkbox checked={sel.selected.has(item._id)} onCheckedChange={(v) => sel.toggle(item._id, v === true)} aria-label={`Select ${item.clientName || 'this row'}`} />;
+}
+
+function TickAll({ items }) {
+  const sel = useContext(SelectionContext);
+  if (!sel) return null;
+  const ids = items.map((c) => c._id);
+  const on = ids.filter((id) => sel.selected.has(id)).length;
+  return <Checkbox checked={on === 0 ? false : on === ids.length ? true : 'indeterminate'} onCheckedChange={(v) => sel.toggleMany(ids, v === true)} disabled={!ids.length} aria-label="Select all on this page" />;
+}
+
 function Row({ item: c, tabs }) {
+  const sel = useContext(SelectionContext);
   return (
-    <TableRow className="group/row">
+    <TableRow className="group/row" data-state={sel?.selected.has(c._id) ? 'selected' : undefined}>
       <TableCell className={cn(STICKY_CELL, 'w-56 min-w-56 max-w-56')}>
         <div className="flex max-w-full items-center gap-1.5">
+          <Tick item={c} />
           <span className="min-w-0 truncate font-medium" title={c.clientName || undefined}>
             {c.clientName || <span className="text-muted-foreground">(no name)</span>}
           </span>
@@ -375,7 +404,7 @@ export function EmailEvaluationTable({ items = [], loading = false, dimmed = fal
       <Table className="min-w-[2100px]" containerClassName={FREEZE_BOX}>
         <TableHeader className={FREEZE_HEAD}>
           <TableRow className="hover:bg-transparent">
-            <SortableHead label={name.label} column={name.sort} sort={sort} dir={dir} onSort={onSort} className={STICKY_HEAD} />
+            <SortableHead label={name.label} column={name.sort} sort={sort} dir={dir} onSort={onSort} className={STICKY_HEAD} before={loading ? null : <TickAll items={items} />} />
             {rest.map((col) => (col.sort ? <SortableHead key={col.key} label={col.label} column={col.sort} sort={sort} dir={dir} onSort={onSort} /> : <TableHead key={col.key}>{col.label}</TableHead>))}
             <TableHead className="w-24 text-right">Actions</TableHead>
           </TableRow>
@@ -402,6 +431,9 @@ export function EmailEvaluationCards({ items = [], loading = false, dimmed = fal
       {items.map((c) => (
         <li key={c._id} className="grid min-w-0 gap-2.5 rounded-lg border bg-card p-3">
           <div className="flex items-start gap-3">
+            <span className="pt-1">
+              <Tick item={c} />
+            </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-base font-semibold">{c.clientName || '(no name)'}</p>
               <p className="truncate text-sm text-muted-foreground">{[c.company, c.evaluatedFor && `for ${c.evaluatedFor}`, c.tab].filter(Boolean).join(' · ')}</p>
