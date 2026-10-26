@@ -38,6 +38,8 @@ const KEYS_BY_COLLECTION = {
   sheetrows: [['workspace'], ['stats', 'me']],
   // someone tagged you / replied to you (the "Tagged me" bell)
   mentions: [['mentions']],
+  // someone edited the LinkedIn playbook
+  linkedinplaybooks: [['linkedin', 'meta']],
   // a sheet sync records its outcome in the settings
   settings: [['email-evaluation', 'meta'], ['workspace']],
 };

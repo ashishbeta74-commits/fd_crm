@@ -287,6 +287,7 @@ export const api = {
   // LinkedIn outreach CRM (second pipeline on the same contacts)
   linkedin: {
     meta: () => request('/linkedin/meta'),
+    savePlaybook: (body) => request('/linkedin/playbook', { method: 'PUT', body }),
     list: (params) => request(`/linkedin/contacts${toQuery(params)}`),
     stats: (params) => request(`/linkedin/stats${toQuery(params)}`),
     update: (id, body) => request(`/linkedin/contacts/${id}`, { method: 'PATCH', body }),

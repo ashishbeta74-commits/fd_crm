@@ -5,6 +5,7 @@ import { HttpError } from '../lib/errors.js';
 import { addDays, isoDate, parseDate, todayUtc } from '../lib/dates.js';
 import { escapeRegex, runPool } from '../lib/pool.js';
 import { Contact } from '../models/Contact.js';
+import { LinkedinPlaybook } from '../models/LinkedinPlaybook.js';
 import { PRIORITY_KEYS, priorityLabel } from '../fields.js';
 import {
   LI_CONNECTION_KEYS,
@@ -49,10 +50,41 @@ linkedinRouter.get('/meta', async (req, res) => {
     valueBands: LI_VALUE_BANDS,
     statuses: LI_STATUSES,
     steps: LI_STEPS.map(({ key, label, requires }) => ({ key, label, requires: requires || null })),
-    playbook: LI_PLAYBOOK,
-    meetingLink: LI_MEETING_LINK,
-    rules: LI_RULES,
+    ...(await playbookView()),
   });
+});
+
+// ---------- playbook (anyone signed in can edit it) ----------
+async function playbookView() {
+  const saved = await LinkedinPlaybook.findOne().lean();
+  if (!saved) return { playbook: LI_PLAYBOOK, meetingLink: LI_MEETING_LINK, rules: LI_RULES, playbookEditedBy: '', playbookEditedAt: null };
+  return { playbook: saved.playbook, meetingLink: saved.meetingLink, rules: saved.rules, playbookEditedBy: saved.updatedBy, playbookEditedAt: saved.updatedAt };
+}
+
+const playbookText = z.string().trim().max(5000);
+const playbookInput = z
+  .object({
+    playbook: z
+      .array(
+        z.object({
+          step: z.number().int(),
+          stage: z.enum(LI_STAGE_KEYS),
+          title: z.string().trim().min(1).max(200),
+          note: playbookText.optional(),
+          messages: z.array(z.object({ label: z.string().trim().max(200), text: playbookText, note: playbookText.optional() })).max(30),
+        }),
+      )
+      .max(20),
+    rules: z.array(z.string().trim().min(1).max(1000)).max(30),
+    meetingLink: z.string().trim().max(500),
+  })
+  .strict();
+
+linkedinRouter.put('/playbook', async (req, res) => {
+  const body = playbookInput.parse(req.body);
+  const updatedBy = req.user?.displayName || req.user?.username || '';
+  await LinkedinPlaybook.findOneAndUpdate({}, { ...body, updatedBy }, { upsert: true });
+  res.json(await playbookView());
 });
 
 // ---------- list ----------
