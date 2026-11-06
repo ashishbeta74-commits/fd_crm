@@ -268,7 +268,7 @@ const rowOut = (doc) => {
 };
 
 // ---------- follow-up sends ----------
-// Log the next send (Sent 2 ... Sent 5): { channel, date? (defaults to today) }. CRM only, the sheet is not changed.
+// Log the next send (Sent 2 ... Sent 4 by email, then Text 1 ... Text 3): { channel, date? (defaults to today) }. CRM only, the sheet is not changed.
 const sendInput = z.object({ channel: z.enum(CHANNELS), date: z.string().trim().max(40).optional() });
 
 emailEvaluationRouter.post('/:id/sends', async (req, res) => {
@@ -283,9 +283,10 @@ emailEvaluationRouter.post('/:id/sends', async (req, res) => {
 /** Push the next send onto the row (throws a 400 when it cannot take one); the caller saves. */
 function logSend(doc, body, req) {
   if (!tracksFollowUps(doc.tab)) throw new HttpError(400, `Rows of the "${doc.tab}" tab are not followed up`);
-  if (!channelsFor(doc.tab).includes(body.channel)) throw new HttpError(400, `The "${doc.tab}" tab is followed up by email only`);
   const { sentCount } = followUpState(doc);
   if (sentCount >= MAX_SENDS) throw new HttpError(400, `All ${MAX_SENDS} sends are done`);
+  const allowed = channelsFor(doc.tab, sentCount + 1);
+  if (!allowed.includes(body.channel)) throw new HttpError(400, `Send ${sentCount + 1} goes by ${allowed.join(' / ')}`);
   const date = body.date ? parseDate(body.date) : todayUtc();
   if (!date) throw new HttpError(400, 'Date not recognised (use YYYY-MM-DD)');
   if (date > todayUtc()) throw new HttpError(400, 'The send date cannot be in the future');

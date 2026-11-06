@@ -108,20 +108,27 @@ function EditableCell({ item, field, className, multiline = false }) {
   );
 }
 
-const MAX_SENDS = 5;
+// Sends 1-4 are emails, then 3 follow-ups by text (sends 5-7).
+const EMAIL_SENDS = 4;
+const MAX_SENDS = 7;
 const CHANNEL_LABELS = { email: 'Email', text: 'Text', whatsapp: 'WhatsApp', call: 'Call' };
-// Same rule as the API (services/emailEvaluation.js): Reservations tabs are not followed up, sheet tabs by email only.
-const channelsFor = (tab) => (/reservation/i.test(tab || '') ? [] : tab ? ['email'] : Object.keys(CHANNEL_LABELS));
+// Same rule as the API (services/emailEvaluation.js): Reservations tabs are not followed up, sends after the 4th by text,
+// before that sheet tabs by email only.
+const channelsFor = (tab, n = 1) => (/reservation/i.test(tab || '') ? [] : n > EMAIL_SENDS ? ['text'] : tab ? ['email'] : Object.keys(CHANNEL_LABELS));
+/** Send n as the team says it: Sent 1-4, then Text 1-3. */
+const sendLabel = (n, channel = 'text') => (n > EMAIL_SENDS && channel === 'text' ? `Text ${n - EMAIL_SENDS}` : `Sent ${n}`);
+const sendProgress = (n) => (n > EMAIL_SENDS ? `Text ${n - EMAIL_SENDS}/${MAX_SENDS - EMAIL_SENDS}` : `Sent ${n}/${EMAIL_SENDS}`);
 
-/** "Sent 3/5 · 2 Oct" + when the next send is due (10 working days on), and a menu to log the next send on a date (today by default). */
+/** "Sent 3/4 · 2 Oct" + when the next send is due (10 working days on), and a menu to log the next send on a date (today by default). */
 function FollowUpCell({ item }) {
   const log = useLogSend();
   const undo = useUndoSend();
   const ticked = useTicked(item._id);
   const [date, setDate] = useState('');
-  const channels = channelsFor(item.tab);
-  if (!channels.length) return <Dash />;
+  if (!channelsFor(item.tab).length) return <Dash />;
   const n = item.sentCount || 0;
+  // ticked rows can be at different steps (the API refuses a wrong channel per row and names it)
+  const channels = ticked ? [...new Set([...channelsFor(item.tab), 'text'])] : channelsFor(item.tab, n + 1);
   const today = zonedDateIso();
   const on = date || today;
   const onLabel = on === today ? 'today' : formatDate(on);
@@ -131,7 +138,7 @@ function FollowUpCell({ item }) {
     <div className="flex items-center gap-2">
       <div className="min-w-0 text-sm leading-tight" suppressHydrationWarning>
         <p className="whitespace-nowrap">
-          {n ? `Sent ${n}/${MAX_SENDS}` : 'Not sent'}
+          {n ? sendProgress(n) : 'Not sent'}
           {item.lastSentAt ? <span className="text-muted-foreground"> · {formatDate(item.lastSentAt)}</span> : null}
         </p>
         {item.nextFollowUpAt ? (
@@ -159,8 +166,8 @@ function FollowUpCell({ item }) {
               </label>
               <DropdownMenuSeparator />
               {channels.map((ch) => (
-                <DropdownMenuItem key={ch} onSelect={() => log.mutate({ id: item._id, channel: ch, date: on }, { onSuccess: (r) => doneToast(r, r?.bulk ? `Next send logged (${CHANNEL_LABELS[ch]}, ${onLabel})` : `Sent ${n + 1} logged (${CHANNEL_LABELS[ch]}, ${onLabel})${n + 1 < MAX_SENDS ? ' - next one due 10 working days later' : ''}`) })}>
-                  <Send /> {ticked ? 'Next send' : `Sent ${n + 1}`} by {CHANNEL_LABELS[ch]}, {onLabel}
+                <DropdownMenuItem key={ch} onSelect={() => log.mutate({ id: item._id, channel: ch, date: on }, { onSuccess: (r) => doneToast(r, r?.bulk ? `Next send logged (${CHANNEL_LABELS[ch]}, ${onLabel})` : `${sendLabel(n + 1)} logged (${CHANNEL_LABELS[ch]}, ${onLabel})${n + 1 < MAX_SENDS ? ' - next one due 10 working days later' : ''}`) })}>
+                  <Send /> {ticked ? 'Next send' : sendLabel(n + 1)} by {CHANNEL_LABELS[ch]}, {onLabel}
                 </DropdownMenuItem>
               ))}
             </>
@@ -177,8 +184,8 @@ function FollowUpCell({ item }) {
           ) : lastCrm ? (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => undo.mutate(item._id, { onSuccess: () => toast.success(`Sent ${lastCrm.n} taken back`) })}>
-                <Undo2 /> Undo Sent {lastCrm.n} ({formatDate(lastCrm.date)})
+              <DropdownMenuItem onSelect={() => undo.mutate(item._id, { onSuccess: () => toast.success(`${sendLabel(lastCrm.n, lastCrm.channel)} taken back`) })}>
+                <Undo2 /> Undo {sendLabel(lastCrm.n, lastCrm.channel)} ({formatDate(lastCrm.date)})
               </DropdownMenuItem>
             </>
           ) : null}

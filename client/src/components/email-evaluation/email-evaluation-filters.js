@@ -167,7 +167,7 @@ export function EmailEvaluationToolbar({ params, setParams, clearFilters, active
   const tabOptions = (meta?.tabs || []).map((t) => ({ key: t.tab || 'none', label: t.tab || 'Added in the CRM', count: t.count }));
   const yearOptions = (meta?.years || []).map((y) => ({ key: y.year || 'none', label: y.year || 'Not set', count: y.count }));
   const sentCounts = Object.fromEntries((meta?.sent || []).map((x) => [x.n, x.count]));
-  const sentOptions = [1, 2, 3, 4, 5].map((n) => ({ key: String(n), label: `Sent ${n}`, count: sentCounts[n] || 0 }));
+  const sentOptions = [1, 2, 3, 4, 5, 6, 7].map((n) => ({ key: String(n), label: n > 4 ? `Text ${n - 4}` : `Sent ${n}`, count: sentCounts[n] || 0 }));
   const exportHref = api.emailEvaluation.exportUrl({ ...params, page: undefined, limit: undefined });
   return (
     <div className="flex flex-wrap items-center gap-2">

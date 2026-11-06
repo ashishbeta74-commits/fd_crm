@@ -280,15 +280,17 @@ function fieldsFromValues(values, only = null) {
 }
 
 // ---------- follow-up sends ----------
-// Sent 1 goes out on the row's DATE; each next send is due 10 working days (Mon-Fri) after the last, up to Sent 5.
+// Sent 1 goes out on the row's DATE; each next send is due 10 working days (Mon-Fri) after the last.
+// Sends 1-4 are emails, then 3 follow-ups by text (sends 5-7).
 
-export const MAX_SENDS = 5;
+export const EMAIL_SENDS = 4;
+export const MAX_SENDS = 7;
 export const FOLLOW_UP_WORKDAYS = 10;
 export const CHANNELS = ['email', 'text', 'whatsapp', 'call'];
 /** Reservations tabs are not followed up. */
 export const tracksFollowUps = (tab) => !/reservation/i.test(tab || '');
-/** The sheet's tabs (HARRY, INFO, Advisors) are followed up by email only; rows added here by any channel. */
-export const channelsFor = (tab) => (!tracksFollowUps(tab) ? [] : tab ? ['email'] : CHANNELS);
+/** Channels for send `n`: after the 4th only text; before that the sheet's tabs (HARRY, INFO, Advisors) by email, rows added here by any channel. */
+export const channelsFor = (tab, n = 1) => (!tracksFollowUps(tab) ? [] : n > EMAIL_SENDS ? ['text'] : tab ? ['email'] : CHANNELS);
 
 /** UTC-midnight date `n` Mon-Fri days after `date`. */
 export function addWorkdays(date, n) {
@@ -319,14 +321,17 @@ export function parseSent(text, rowDate = null) {
   // With a year the team writes month/day, without one day/month; a part over 12 settles it either way.
   const monthFirst = m[3] ? a <= 12 : b > 12;
   const date = monthFirst ? utcDate(year, a, b) : utcDate(year, b, a);
-  return date ? { n: Math.min(ord ? +ord[1] : 1, MAX_SENDS), date } : null;
+  // the sheet records emails, so a "5th" email there counts as the 4th (the last email step)
+  return date ? { n: Math.min(ord ? +ord[1] : 1, EMAIL_SENDS), date } : null;
 }
 
 /** { sentCount, lastSentAt, nextFollowUpAt } for a row: the later of the last CRM send and the sheet's text, else Sent 1 on DATE. */
 export function followUpState(doc) {
   const none = { sentCount: 0, lastSentAt: null, nextFollowUpAt: null };
   if (!tracksFollowUps(doc.tab)) return none;
-  const crm = doc.sends?.length ? doc.sends[doc.sends.length - 1] : null;
+  const lastCrm = doc.sends?.length ? doc.sends[doc.sends.length - 1] : null;
+  // a 5th send logged by email (before texts took over) counts as the 4th email, so Text 1 comes next
+  const crm = lastCrm && lastCrm.n > EMAIL_SENDS && lastCrm.channel !== 'text' ? { ...lastCrm, n: EMAIL_SENDS } : lastCrm;
   const sheet = parseSent(doc.followUpDate, doc.date);
   const last = (crm && (!sheet || crm.n >= sheet.n) ? crm : sheet) || (doc.date ? { n: 1, date: doc.date } : null);
   if (!last) return none;

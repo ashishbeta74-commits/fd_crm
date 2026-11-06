@@ -35,7 +35,7 @@ const EmailEvaluationSchema = new Schema(
     followUp: { type: String, default: '' },
     followUpDate: { type: String, default: '' },
 
-    // Follow-up sends logged in the CRM (Sent 2, Sent 3 ... up to Sent 5); never written to the sheet.
+    // Follow-up sends logged in the CRM (Sent 2 ... Sent 4 by email, then 3 by text: n 5-7); never written to the sheet.
     sends: {
       type: [{ _id: false, n: Number, date: Date, channel: String, by: String, at: Date }],
       default: [],
@@ -43,7 +43,7 @@ const EmailEvaluationSchema = new Schema(
     // Derived by services/emailEvaluation.js followUpState() from `sends`, DATE OF FOLLOW UP and DATE.
     sentCount: { type: Number, default: 0 },
     lastSentAt: { type: Date, default: null },
-    nextFollowUpAt: { type: Date, default: null }, // null = not followed up (Reservations), booked, or all 5 sent
+    nextFollowUpAt: { type: Date, default: null }, // null = not followed up (Reservations), booked, or all 7 sent
 
     // The same columns as last read from the sheet (text), for the three-way merge on sync.
     sheet: { type: sheetValues, default: () => ({}) },

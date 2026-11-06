@@ -38,13 +38,20 @@ const st = (doc) => {
 assert.deepEqual(st({ date: row2026 }), [1, '2026-09-01', '2026-09-15']);
 assert.deepEqual(st({ followUpDate: '3rd RE Sent 2/10' }), [3, '2026-10-02', '2026-10-16']);
 assert.deepEqual(st({ followUpDate: '3rd RE Sent 2/10', sends: [{ n: 4, date: d('2026-10-16') }] }), [4, '2026-10-16', '2026-10-30']);
-assert.deepEqual(st({ followUpDate: '5th RE Sent 2/10' }), [5, '2026-10-02', null]);
+// 5 emails already sent (sheet or CRM) -> capped at Sent 4, Text 1 due next
+assert.deepEqual(st({ followUpDate: '5th RE Sent 2/10' }), [4, '2026-10-02', '2026-10-16']);
+assert.deepEqual(st({ sends: [{ n: 5, date: d('2026-10-02'), channel: 'email' }] }), [4, '2026-10-02', '2026-10-16']);
+assert.deepEqual(st({ sends: [{ n: 5, date: d('2026-10-02'), channel: 'email' }, { n: 5, date: d('2026-10-16'), channel: 'text' }] }), [5, '2026-10-16', '2026-10-30']);
+assert.deepEqual(st({ followUpDate: '4th RE Sent 2/10', sends: [{ n: 7, date: d('2026-10-30'), channel: 'text' }] }), [7, '2026-10-30', null]);
 assert.deepEqual(st({ followUpDate: '09/15/2026 BOOKED', date: row2026 }), [1, '2026-09-01', null]);
 assert.deepEqual(st({ status: 'NEVER BOOKED', date: row2026 }), [1, '2026-09-01', '2026-09-15']);
 assert.deepEqual(st({ tab: 'Reservations@', followUpDate: '2026-09-21' }), [0, null, null]);
 assert.deepEqual(st({}), [0, null, null]);
 
 assert.deepEqual(channelsFor('HARRY'), ['email']);
+assert.deepEqual(channelsFor('HARRY', 4), ['email']);
+assert.deepEqual(channelsFor('HARRY', 5), ['text']);
+assert.deepEqual(channelsFor('', 7), ['text']);
 assert.deepEqual(channelsFor(''), ['email', 'text', 'whatsapp', 'call']);
 assert.deepEqual(channelsFor('Reservations@'), []);
 
