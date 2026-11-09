@@ -11,7 +11,7 @@ import { SheetRow } from '../models/SheetRow.js';
 import { WorkspaceEvent } from '../models/WorkspaceEvent.js';
 import { WORKSPACES, getWorkspace, publicWorkspace, rankOf } from '../workspaces.js';
 import { autoSyncInfo } from '../services/sync.js';
-import { cleanCell, getSettings, mapHeaders, nextAutoId, nextRowKey, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
+import { cleanCell, getSettings, mapHeaders, nextAutoId, nextRowKey, rememberDeleted, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
 import { appendSheetRow, readTabHeaders } from '../services/sheetAppend.js';
 
 export const workspacesRouter = Router();
@@ -298,13 +298,16 @@ workspacesRouter.patch('/:key/:id', async (req, res) => {
 workspacesRouter.delete('/:key/:id', async (req, res) => {
   const r = await SheetRow.findOneAndDelete({ _id: req.params.id, workspace: req.ws.key });
   if (!r) throw new HttpError(404, 'Row not found');
+  await rememberDeleted(req.ws, [r]);
   res.json({ ok: true });
 });
 
 // Delete the rows ticked in the table.
 workspacesRouter.post('/:key/bulk-delete', async (req, res) => {
   const { ids } = z.object({ ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(1000) }).parse(req.body);
-  const r = await SheetRow.deleteMany({ _id: { $in: ids }, workspace: req.ws.key });
+  const docs = await SheetRow.find({ _id: { $in: ids }, workspace: req.ws.key }).select('source key').lean();
+  const r = await SheetRow.deleteMany({ _id: { $in: docs.map((d) => d._id) } });
+  await rememberDeleted(req.ws, docs);
   res.json({ deleted: r.deletedCount });
 });
 

@@ -153,6 +153,8 @@ WORKSPACES.push({
   nameFields: ['firstName', 'lastName'],
   description: 'Client accounts to reach out to: who they are, how to contact them, the account details and notes, and where each outreach stands.',
   rowLabel: 'client',
+  // a client deleted here stays deleted: the sync skips that sheet row from then on
+  keepDeleted: true,
   sheet: {
     url: 'https://docs.google.com/spreadsheets/d/1zrXQHIhUwHiKyLQMaQ4H2uei67Ov3k7r2wSRyI6cVB4/edit?gid=546361126#gid=546361126',
     tabs: [],

@@ -106,7 +106,16 @@ export async function getSettings(ws) {
     lastCounts: v.lastCounts || null,
     lastTabs: Array.isArray(v.lastTabs) ? v.lastTabs : [],
     contentHash: v.contentHash || '',
+    // keys of sheet rows deleted in the CRM: the sync does not bring them back while they are still in the sheet
+    deletedKeys: Array.isArray(v.deletedKeys) ? v.deletedKeys : [],
   };
+}
+
+/** Remember deleted sheet rows so the next sync does not add them back (workspaces with `keepDeleted` only). */
+export async function rememberDeleted(ws, docs) {
+  if (!ws.keepDeleted) return;
+  const keys = docs.filter((d) => d.source === 'sheet' && d.key).map((d) => d.key);
+  if (keys.length) await Setting.updateOne({ key: settingKey(ws) }, { $addToSet: { 'value.deletedKeys': { $each: keys } } }, { upsert: true });
 }
 
 async function patchSettings(ws, patch) {
@@ -189,6 +198,7 @@ export async function syncWorkspace(ws, { force = true, log = console.log } = {}
 
   const rows = [];
   const seen = new Set();
+  const deleted = new Set(settings.deletedKeys);
   const hash = createHash('sha1');
   for (const { sheet, mapping } of tabs) {
     const counts = new Map();
@@ -199,6 +209,7 @@ export async function syncWorkspace(ws, { force = true, log = console.log } = {}
       const n = (counts.get(base) || 0) + 1;
       counts.set(base, n);
       const key = n === 1 ? base : `${base}#${n}`;
+      if (deleted.has(key)) continue;
       seen.add(key);
       rows.push({ key, tab: sheet.name, rowNumber: row.rowNumber, text });
       hash.update(`\n${key}\t${JSON.stringify(text)}`);
