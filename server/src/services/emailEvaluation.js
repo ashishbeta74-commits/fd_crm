@@ -339,6 +339,15 @@ export function followUpState(doc) {
   return { sentCount: last.n, lastSentAt: last.date, nextFollowUpAt: done ? null : addWorkdays(last.date, FOLLOW_UP_WORKDAYS) };
 }
 
+/** The same sequence logged only in the CRM (Reservations passengers): nothing sent until Sent 1 is logged. */
+export function sendsState(sends = []) {
+  const last = sends[sends.length - 1];
+  if (!last) return { sentCount: 0, lastSentAt: null, nextFollowUpAt: null };
+  return { sentCount: last.n, lastSentAt: last.date, nextFollowUpAt: last.n >= MAX_SENDS ? null : addWorkdays(last.date, FOLLOW_UP_WORKDAYS) };
+}
+/** Sends 1-4 by email, then text. */
+export const sequenceChannels = (n) => (n > EMAIL_SENDS ? ['text'] : ['email']);
+
 /** Recompute the derived follow-up fields of the matching rows; writes only the rows that changed. */
 export async function refreshFollowUps(filter = {}) {
   const docs = await EmailEvaluation.find(filter).select('tab date status followUpDate sends sentCount lastSentAt nextFollowUpAt').lean();

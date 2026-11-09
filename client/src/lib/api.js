@@ -317,6 +317,9 @@ export const api = {
     meta: (key) => request(`/workspaces/${key}/meta`),
     rows: (key, params) => request(`/workspaces/${key}${toQuery(params)}`),
     groups: (key, params) => request(`/workspaces/${key}/groups${toQuery(params)}`),
+    // follow-up sends of one group (a Reservations passenger)
+    logGroupSend: (key, g, body) => request(`/workspaces/${key}/groups/${encodeURIComponent(g)}/sends`, { method: 'POST', body }),
+    undoGroupSend: (key, g) => request(`/workspaces/${key}/groups/${encodeURIComponent(g)}/sends/last`, { method: 'DELETE' }),
     create: (key, body) => request(`/workspaces/${key}`, { method: 'POST', body }),
     update: (key, id, body) => request(`/workspaces/${key}/${id}`, { method: 'PATCH', body }),
     remove: (key, id) => request(`/workspaces/${key}/${id}`, { method: 'DELETE' }),

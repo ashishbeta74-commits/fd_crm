@@ -37,6 +37,14 @@ export function useRemoveRows(key) {
   return useMutation({ mutationFn: (ids) => api.workspaces.removeMany(key, ids), onSuccess: invalidate, onError: showError });
 }
 
+/** Log / take back a follow-up send of one group (a Reservations passenger); mutations shaped like Email Evaluation's. */
+export function useGroupSends(key) {
+  const invalidate = useInvalidateWorkspace(key);
+  const log = useMutation({ mutationFn: ({ id, ...body }) => api.workspaces.logGroupSend(key, id, body), onSuccess: invalidate, onError: showError });
+  const undo = useMutation({ mutationFn: (id) => api.workspaces.undoGroupSend(key, id), onSuccess: invalidate, onError: showError });
+  return { log, undo };
+}
+
 export function useSyncSheet(key) {
   const invalidate = useInvalidateWorkspace(key);
   return useMutation({

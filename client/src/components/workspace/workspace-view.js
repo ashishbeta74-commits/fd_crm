@@ -251,7 +251,7 @@ export function WorkspaceView({ workspace: key, href }) {
   const groupSort = params.sort || 'count';
   const groupDir = params.dir || 'desc';
   const onGroupSort = (column) => setParams({ sort: column, dir: groupSort === column && groupDir === 'desc' ? 'asc' : 'desc' });
-  const setGrouped = (on) => setParams({ group: on ? '1' : '', g: '', sort: '', dir: '' });
+  const setGrouped = (on) => setParams({ group: on ? '1' : '', g: '', sort: '', dir: '', due: '' });
   const openGroup = (g) => setParams({ group: '', g: g.key, sort: '', dir: '' });
   const showTab = (meta.data?.tabs || []).length > 1;
   // the sheet's tabs, for filing a row added here into one of them
@@ -341,6 +341,13 @@ export function WorkspaceView({ workspace: key, href }) {
             <Switch checked={grouped} onCheckedChange={setGrouped} />
             Merge duplicates
             <span className="text-xs text-muted-foreground">(one row per {ws.groupBy.label})</span>
+          </label>
+        ) : null}
+        {grouped && ws?.followUps ? (
+          <label className="flex items-center gap-2 text-sm">
+            <Switch checked={params.due === 'yes'} onCheckedChange={(on) => setParams({ due: on ? 'yes' : '' })} />
+            Follow-ups due
+            {data?.due != null ? <span className="text-xs text-muted-foreground">({data.due})</span> : null}
           </label>
         ) : null}
         {inlineFields.length && !grouped && !ws?.groupBy ? <p className="text-xs text-muted-foreground">Click a cell to edit it in place{inlineFields.some((f) => f.type === 'enum') ? '; statuses are dropdowns' : ''}.</p> : null}

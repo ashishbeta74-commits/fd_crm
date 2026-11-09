@@ -217,6 +217,8 @@ WORKSPACES.push({
   // "Merge duplicates": one row per passenger (paxKey = the name; the export's email is often the booker's), with
   // trip count, total, first and last trip
   groupBy: { field: 'paxKey', label: 'passenger', show: ['passenger', 'passengerEmail', 'company', 'accountNo'] },
+  // follow-up sends per passenger in the merged view, like Email Evaluation (Sent 1-4 by email, then Text 1-3); models/GroupFollowUp.js
+  followUps: true,
   fields: [
     { key: 'confNo', label: 'Conf #', headers: ['conf', 'confno', 'confirmation'], type: 'text', search: true, sort: true, width: 'w-24' },
     { key: 'puDate', label: 'Pickup date', headers: ['pudate', 'pickupdate'], type: 'date', sort: true },
@@ -261,6 +263,7 @@ export const publicWorkspace = (w) => ({
   actionsFirst: Boolean(w.actionsFirst),
   resizable: Boolean(w.resizable),
   groupBy: w.groupBy || null,
+  followUps: Boolean(w.followUps),
   fields: w.fields.map(({ headers, ...f }) => f),
 });
 
