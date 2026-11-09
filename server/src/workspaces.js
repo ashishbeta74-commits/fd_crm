@@ -157,7 +157,8 @@ WORKSPACES.push({
   keepDeleted: true,
   sheet: {
     url: 'https://docs.google.com/spreadsheets/d/1zrXQHIhUwHiKyLQMaQ4H2uei67Ov3k7r2wSRyI6cVB4/edit?gid=546361126#gid=546361126',
-    tabs: [],
+    // named, so the sync always reads these four (a failed lookup of the link's tab used to switch between one and all)
+    tabs: ['LA Client Accounts', 'Reach out 2026', 'Client to reach out', 'Affiliate to reach out.'],
   },
   keyField: 'accountNo',
   dateField: 'statusDate',
