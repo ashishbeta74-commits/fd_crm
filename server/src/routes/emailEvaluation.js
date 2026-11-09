@@ -10,7 +10,7 @@ import { isoDate, parseDate, todayUtc } from '../lib/dates.js';
 import { escapeRegex } from '../lib/pool.js';
 import { EVAL_FIELDS, EmailEvaluation } from '../models/EmailEvaluation.js';
 import { autoSyncInfo } from '../services/sync.js';
-import { CHANNELS, MAX_SENDS, channelsFor, cleanEmail, cleanPhone, cleanText, followUpState, getSettings, mapHeaders, nextRowKey, setSheet, syncEmailEvaluations, tracksFollowUps } from '../services/emailEvaluation.js';
+import { CHANNELS, MAX_SENDS, channelsFor, cleanEmail, cleanPhone, cleanText, followUpState, getSettings, mapHeaders, nextRowKey, setSheet, syncEmailEvaluations } from '../services/emailEvaluation.js';
 import { appendSheetRow, readTabHeaders } from '../services/sheetAppend.js';
 
 export const emailEvaluationRouter = Router();
@@ -282,7 +282,6 @@ emailEvaluationRouter.post('/:id/sends', async (req, res) => {
 
 /** Push the next send onto the row (throws a 400 when it cannot take one); the caller saves. */
 function logSend(doc, body, req) {
-  if (!tracksFollowUps(doc.tab)) throw new HttpError(400, `Rows of the "${doc.tab}" tab are not followed up`);
   const { sentCount } = followUpState(doc);
   if (sentCount >= MAX_SENDS) throw new HttpError(400, `All ${MAX_SENDS} sends are done`);
   const allowed = channelsFor(doc.tab, sentCount + 1);

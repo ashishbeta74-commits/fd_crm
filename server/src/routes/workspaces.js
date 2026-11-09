@@ -5,12 +5,10 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import { HttpError } from '../lib/errors.js';
 import { requireAdmin } from '../lib/auth.js';
-import { isoDate, parseDate, todayUtc } from '../lib/dates.js';
+import { isoDate, parseDate } from '../lib/dates.js';
 import { escapeRegex } from '../lib/pool.js';
 import { SheetRow } from '../models/SheetRow.js';
 import { WorkspaceEvent } from '../models/WorkspaceEvent.js';
-import { GroupFollowUp } from '../models/GroupFollowUp.js';
-import { CHANNELS, MAX_SENDS, sendsState, sequenceChannels } from '../services/emailEvaluation.js';
 import { WORKSPACES, getWorkspace, publicWorkspace, rankOf } from '../workspaces.js';
 import { autoSyncInfo } from '../services/sync.js';
 import { cleanCell, getSettings, mapHeaders, nextAutoId, nextRowKey, rememberDeleted, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
@@ -115,12 +113,8 @@ workspacesRouter.get('/:key/groups', async (req, res) => {
   const limit = PAGE_SIZES.includes(p.limit) ? p.limit : 50;
   const sort = ['count', 'value', 'first', 'last'].includes(p.sort) ? p.sort : 'count';
   const date = `$values.${ws.dateField}`;
-  const match = buildFilter(ws, p, req.query);
-  // ?due=yes: only the groups whose next follow-up send is due today or overdue
-  const dueFilter = { workspace: ws.key, nextFollowUpAt: { $ne: null, $lte: todayUtc() } };
-  if (ws.followUps && req.query.due === 'yes') match[`values.${ws.groupBy.field}`] = { $in: await GroupFollowUp.distinct('key', dueFilter) };
   const [r] = await SheetRow.aggregate([
-    { $match: match },
+    { $match: buildFilter(ws, p, req.query) },
     { $sort: { [`values.${ws.dateField}`]: -1 } },
     {
       $group: {
@@ -135,47 +129,7 @@ workspacesRouter.get('/:key/groups', async (req, res) => {
     { $facet: { total: [{ $count: 'n' }], items: [{ $sort: { [sort]: p.dir === 'asc' ? 1 : -1, _id: 1 } }, { $skip: (p.page - 1) * limit }, { $limit: limit }] } },
   ]).allowDiskUse(true);
   const total = r?.total?.[0]?.n || 0;
-  const items = (r?.items || []).map(({ _id, ...g }) => ({ key: _id ?? '', ...g }));
-  if (!ws.followUps) return res.json({ items, total, page: p.page, pages: Math.max(1, Math.ceil(total / limit)), limit });
-  const [fus, due] = await Promise.all([GroupFollowUp.find({ workspace: ws.key, key: { $in: items.map((g) => g.key) } }).lean(), GroupFollowUp.countDocuments(dueFilter)]);
-  const byKey = new Map(fus.map((f) => [f.key, f]));
-  for (const g of items) {
-    const f = byKey.get(g.key);
-    g.followUp = { sends: f?.sends || [], sentCount: f?.sentCount || 0, lastSentAt: f?.lastSentAt || null, nextFollowUpAt: f?.nextFollowUpAt || null };
-  }
-  res.json({ items, total, page: p.page, pages: Math.max(1, Math.ceil(total / limit)), limit, due });
-});
-
-// ---------- follow-up sends per group (Reservations: per passenger) ----------
-// Log the next send: { channel, date? (defaults to today) }. Sent 1-4 by email, then Text 1-3.
-workspacesRouter.post('/:key/groups/:g/sends', async (req, res) => {
-  const ws = req.ws;
-  if (!ws.followUps) throw new HttpError(404, `${ws.label} has no follow-ups`);
-  const body = z.object({ channel: z.enum(CHANNELS), date: z.string().trim().max(40).optional() }).parse(req.body);
-  const key = req.params.g;
-  if (!(await SheetRow.exists({ workspace: ws.key, [`values.${ws.groupBy.field}`]: key }))) throw new HttpError(404, `No ${ws.groupBy.label} "${key}"`);
-  const doc = (await GroupFollowUp.findOne({ workspace: ws.key, key })) || new GroupFollowUp({ workspace: ws.key, key });
-  const { sentCount } = sendsState(doc.sends);
-  if (sentCount >= MAX_SENDS) throw new HttpError(400, `All ${MAX_SENDS} sends are done`);
-  const allowed = sequenceChannels(sentCount + 1);
-  if (!allowed.includes(body.channel)) throw new HttpError(400, `Send ${sentCount + 1} goes by ${allowed.join(' / ')}`);
-  const date = body.date ? parseDate(body.date) : todayUtc();
-  if (!date) throw new HttpError(400, 'Date not recognised (use YYYY-MM-DD)');
-  if (date > todayUtc()) throw new HttpError(400, 'The send date cannot be in the future');
-  doc.sends.push({ n: sentCount + 1, date, channel: body.channel, by: who(req), at: new Date() });
-  Object.assign(doc, sendsState(doc.sends));
-  await doc.save();
-  res.status(201).json(doc.toObject());
-});
-
-// Take back the last send logged for the group.
-workspacesRouter.delete('/:key/groups/:g/sends/last', async (req, res) => {
-  const doc = req.ws.followUps ? await GroupFollowUp.findOne({ workspace: req.ws.key, key: req.params.g }) : null;
-  if (!doc?.sends.length) throw new HttpError(400, 'No send was logged for this one');
-  doc.sends.pop();
-  Object.assign(doc, sendsState(doc.sends));
-  await doc.save();
-  res.json(doc.toObject());
+  res.json({ items: (r?.items || []).map(({ _id, ...g }) => ({ key: _id ?? '', ...g })), total, page: p.page, pages: Math.max(1, Math.ceil(total / limit)), limit });
 });
 
 // Filter values in use (with counts), the status tiles, the linked sheet and its last sync.

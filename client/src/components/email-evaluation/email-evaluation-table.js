@@ -112,34 +112,22 @@ function EditableCell({ item, field, className, multiline = false }) {
 const EMAIL_SENDS = 4;
 const MAX_SENDS = 7;
 const CHANNEL_LABELS = { email: 'Email', text: 'Text', whatsapp: 'WhatsApp', call: 'Call' };
-// Same rule as the API (services/emailEvaluation.js): Reservations tabs are not followed up, sends after the 4th by text,
+// Same rule as the API (services/emailEvaluation.js), every tab (Reservations@ included): sends after the 4th by text,
 // before that sheet tabs by email only.
-const channelsFor = (tab, n = 1) => (/reservation/i.test(tab || '') ? [] : n > EMAIL_SENDS ? ['text'] : tab ? ['email'] : Object.keys(CHANNEL_LABELS));
+const channelsFor = (tab, n = 1) => (n > EMAIL_SENDS ? ['text'] : tab ? ['email'] : Object.keys(CHANNEL_LABELS));
 /** Send n as the team says it: Sent 1-4, then Text 1-3. */
 const sendLabel = (n, channel = 'text') => (n > EMAIL_SENDS && channel === 'text' ? `Text ${n - EMAIL_SENDS}` : `Sent ${n}`);
 const sendProgress = (n) => (n > EMAIL_SENDS ? `Text ${n - EMAIL_SENDS}/${MAX_SENDS - EMAIL_SENDS}` : `Sent ${n}/${EMAIL_SENDS}`);
 
+/** "Sent 3/4 · 2 Oct" + when the next send is due (10 working days on), and a menu to log the next send on a date (today by default). */
 function FollowUpCell({ item }) {
   const log = useLogSend();
   const undo = useUndoSend();
   const ticked = useTicked(item._id);
-  if (!channelsFor(item.tab).length) return <Dash />;
+  const [date, setDate] = useState('');
   const n = item.sentCount || 0;
   // ticked rows can be at different steps (the API refuses a wrong channel per row and names it)
   const channels = ticked ? [...new Set([...channelsFor(item.tab), 'text'])] : channelsFor(item.tab, n + 1);
-  return <SendsCell item={item} channels={channels} log={log} undo={undo} ticked={ticked} />;
-}
-
-/** The 4-emails-then-3-texts sequence for anything that is not a sheet row (Reservations passengers): email for sends 1-4, then text. */
-export const sequenceChannels = (n) => (n > EMAIL_SENDS ? ['text'] : ['email']);
-
-/**
- * "Sent 3/4 · 2 Oct" + when the next send is due (10 working days on), and a menu to log the next send on a date (today by default).
- * `item`: { _id, sentCount, lastSentAt, nextFollowUpAt, sends }; `log` / `undo`: mutations taking ({ id, channel, date }) / (id).
- */
-export function SendsCell({ item, channels, log, undo, ticked = 0 }) {
-  const [date, setDate] = useState('');
-  const n = item.sentCount || 0;
   const today = zonedDateIso();
   const on = date || today;
   const onLabel = on === today ? 'today' : formatDate(on);

@@ -43,7 +43,7 @@ const EmailEvaluationSchema = new Schema(
     // Derived by services/emailEvaluation.js followUpState() from `sends`, DATE OF FOLLOW UP and DATE.
     sentCount: { type: Number, default: 0 },
     lastSentAt: { type: Date, default: null },
-    nextFollowUpAt: { type: Date, default: null }, // null = not followed up (Reservations), booked, or all 7 sent
+    nextFollowUpAt: { type: Date, default: null }, // null = booked, or all 7 sent
 
     // The same columns as last read from the sheet (text), for the three-way merge on sync.
     sheet: { type: sheetValues, default: () => ({}) },

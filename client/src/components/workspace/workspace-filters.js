@@ -19,7 +19,7 @@ const oneOf = (v, allowed, fallback) => (allowed.includes(v) ? v : fallback);
 
 /** Every query-string key that is a filter (search, date range, tab, missing, and the per-field `f.<key>` ones). */
 export function filterKeys(params) {
-  return Object.keys(params).filter((k) => k === 'q' || k === 'from' || k === 'to' || k === 'tab' || k === 'missing' || k === 'due' || k === 'g' || k.startsWith('f.'));
+  return Object.keys(params).filter((k) => k === 'q' || k === 'from' || k === 'to' || k === 'tab' || k === 'missing' || k === 'g' || k.startsWith('f.'));
 }
 
 export function parseParams(sp) {
@@ -34,8 +34,6 @@ export function parseParams(sp) {
     to: get('to'),
     tab: get('tab'),
     missing: oneOf(get('missing'), ['yes'], ''),
-    // merged view: only the groups whose next follow-up send is due
-    due: oneOf(get('due'), ['yes'], ''),
     // "Merge duplicates" on (one row per group), and one group's rows (a passenger's trips)
     group: oneOf(get('group'), ['1'], ''),
     g: get('g'),

@@ -15,8 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { WorkspaceDialog, valueText } from '@/components/workspace/workspace-dialog';
-import { useGroupSends, useRemoveRow, useRemoveRows, useUpdateRow } from '@/components/workspace/use-workspace';
-import { SendsCell, sequenceChannels } from '@/components/email-evaluation/email-evaluation-table';
+import { useRemoveRow, useRemoveRows, useUpdateRow } from '@/components/workspace/use-workspace';
 import { useSelection } from '@/components/contacts/list/use-selection';
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
@@ -665,13 +664,6 @@ const money = (n) => `$${Math.round(n || 0).toLocaleString('en-US')}`;
  * "Merge duplicates": one row per group (a passenger) with its row count, value total and first / last date.
  * Sorts by count / value / first / last; clicking a row opens that group's rows.
  */
-/** A group's follow-up sends (Sent 1-4 by email, then Text 1-3), like an Email Evaluation row. */
-function GroupFollowUpCell({ workspace: ws, group: g }) {
-  const { log, undo } = useGroupSends(ws.key);
-  const item = { _id: g.key, ...g.followUp };
-  return <SendsCell item={item} channels={sequenceChannels((item.sentCount || 0) + 1)} log={log} undo={undo} />;
-}
-
 export function WorkspaceGroupTable({ workspace: ws, items = [], loading = false, dimmed = false, sort, dir, onSort, onOpen }) {
   const show = ws.groupBy.show.map((k) => ws.fields.find((f) => f.key === k)).filter(Boolean);
   const [first, ...rest] = show;
@@ -682,8 +674,6 @@ export function WorkspaceGroupTable({ workspace: ws, items = [], loading = false
     { key: 'first', label: 'First', render: (g) => (g.first ? formatDate(g.first) : <Dash />) },
     { key: 'last', label: 'Last', render: (g) => (g.last ? formatDate(g.last) : <Dash />) },
   ];
-  // the follow-up column: not sortable, and its menu must not open the group
-  const followUp = ws.followUps ? { key: 'followUp', label: 'Follow-up' } : null;
   return (
     <div className={cn('relative overflow-x-auto rounded-lg border bg-card transition-opacity duration-200', dimmed && 'opacity-60')} aria-busy={loading || dimmed || undefined}>
       <Table className="w-max min-w-full" containerClassName={FREEZE_BOX}>
@@ -698,14 +688,13 @@ export function WorkspaceGroupTable({ workspace: ws, items = [], loading = false
             {stats.map((s) => (
               <SortableHead key={s.key} label={s.label} column={s.key} sort={sort} dir={dir} onSort={onSort} />
             ))}
-            {followUp ? <TableHead className="whitespace-nowrap">{followUp.label}</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody>
           {loading
             ? Array.from({ length: 8 }, (_, i) => (
                 <TableRow key={i} className="group/row">
-                  {[first, ...rest, ...stats, ...(followUp ? [followUp] : [])].map((c) => (
+                  {[first, ...rest, ...stats].map((c) => (
                     <TableCell key={c.key} className={c === first ? STICKY_CELL : undefined}>
                       <Skeleton className="h-4 w-20" />
                     </TableCell>
@@ -729,11 +718,6 @@ export function WorkspaceGroupTable({ workspace: ws, items = [], loading = false
                       {s.render(g)}
                     </TableCell>
                   ))}
-                  {followUp ? (
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <GroupFollowUpCell workspace={ws} group={g} />
-                    </TableCell>
-                  ) : null}
                 </TableRow>
               ))}
         </TableBody>

@@ -287,10 +287,8 @@ export const EMAIL_SENDS = 4;
 export const MAX_SENDS = 7;
 export const FOLLOW_UP_WORKDAYS = 10;
 export const CHANNELS = ['email', 'text', 'whatsapp', 'call'];
-/** Reservations tabs are not followed up. */
-export const tracksFollowUps = (tab) => !/reservation/i.test(tab || '');
-/** Channels for send `n`: after the 4th only text; before that the sheet's tabs (HARRY, INFO, Advisors) by email, rows added here by any channel. */
-export const channelsFor = (tab, n = 1) => (!tracksFollowUps(tab) ? [] : n > EMAIL_SENDS ? ['text'] : tab ? ['email'] : CHANNELS);
+/** Channels for send `n` (every tab, Reservations@ included): after the 4th only text; before that the sheet's tabs by email, rows added here by any channel. */
+export const channelsFor = (tab, n = 1) => (n > EMAIL_SENDS ? ['text'] : tab ? ['email'] : CHANNELS);
 
 /** UTC-midnight date `n` Mon-Fri days after `date`. */
 export function addWorkdays(date, n) {
@@ -328,7 +326,6 @@ export function parseSent(text, rowDate = null) {
 /** { sentCount, lastSentAt, nextFollowUpAt } for a row: the later of the last CRM send and the sheet's text, else Sent 1 on DATE. */
 export function followUpState(doc) {
   const none = { sentCount: 0, lastSentAt: null, nextFollowUpAt: null };
-  if (!tracksFollowUps(doc.tab)) return none;
   const lastCrm = doc.sends?.length ? doc.sends[doc.sends.length - 1] : null;
   // a 5th send logged by email (before texts took over) counts as the 4th email, so Text 1 comes next
   const crm = lastCrm && lastCrm.n > EMAIL_SENDS && lastCrm.channel !== 'text' ? { ...lastCrm, n: EMAIL_SENDS } : lastCrm;
@@ -338,15 +335,6 @@ export function followUpState(doc) {
   const done = last.n >= MAX_SENDS || BOOKED.test(`${doc.followUpDate} ${doc.status}`);
   return { sentCount: last.n, lastSentAt: last.date, nextFollowUpAt: done ? null : addWorkdays(last.date, FOLLOW_UP_WORKDAYS) };
 }
-
-/** The same sequence logged only in the CRM (Reservations passengers): nothing sent until Sent 1 is logged. */
-export function sendsState(sends = []) {
-  const last = sends[sends.length - 1];
-  if (!last) return { sentCount: 0, lastSentAt: null, nextFollowUpAt: null };
-  return { sentCount: last.n, lastSentAt: last.date, nextFollowUpAt: last.n >= MAX_SENDS ? null : addWorkdays(last.date, FOLLOW_UP_WORKDAYS) };
-}
-/** Sends 1-4 by email, then text. */
-export const sequenceChannels = (n) => (n > EMAIL_SENDS ? ['text'] : ['email']);
 
 /** Recompute the derived follow-up fields of the matching rows; writes only the rows that changed. */
 export async function refreshFollowUps(filter = {}) {
