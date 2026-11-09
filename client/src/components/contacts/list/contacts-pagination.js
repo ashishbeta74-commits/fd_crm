@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { pluralize } from '@/lib/format';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PAGE_SIZES } from '@/components/contacts/list/contact-filters';
 
@@ -33,9 +34,29 @@ export function ContactsPagination({ page, pages, limit, total, count, onPage, o
           </Select>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground whitespace-nowrap">
-            Page {page} of {pages}
-          </span>
+          {/* Type a page number and press Enter to jump there (clamped to 1..pages). */}
+          <form
+            className="flex items-center gap-1.5 whitespace-nowrap text-muted-foreground"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = Math.min(Math.max(1, Math.trunc(Number(e.currentTarget.page.value)) || 1), pages || 1);
+              e.currentTarget.page.value = n;
+              if (n !== page) onPage(n);
+            }}
+          >
+            Page
+            <Input
+              key={page}
+              name="page"
+              type="number"
+              min={1}
+              max={pages}
+              defaultValue={page}
+              aria-label="Go to page"
+              className="h-8 w-16 px-2 text-center"
+            />
+            of {pages}
+          </form>
           <Button variant="outline" onClick={() => onPage(page - 1)} disabled={page <= 1} aria-label="Previous page">
             <ChevronLeft />
             Prev
