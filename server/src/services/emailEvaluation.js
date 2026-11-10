@@ -115,7 +115,13 @@ export async function getSettings() {
     lastCounts: v.lastCounts || null,
     lastTabs: Array.isArray(v.lastTabs) ? v.lastTabs : [],
     contentHash: v.contentHash || '',
+    mergedKeys: Array.isArray(v.mergedKeys) ? v.mergedKeys : [],
   };
+}
+
+/** Sheet rows merged into another row: later syncs skip them so they do not come back. */
+export async function rememberMerged(keys) {
+  if (keys.length) await Setting.updateOne({ key: SETTING_KEY }, { $addToSet: { 'value.mergedKeys': { $each: keys } } }, { upsert: true });
 }
 
 async function patchSettings(patch) {
@@ -175,6 +181,7 @@ export async function syncEmailEvaluations({ force = true, log = console.log } =
   // Rows as the CRM will store them, keyed so a re-sorted sheet maps onto the same documents.
   const rows = [];
   const seen = new Set();
+  const merged = new Set(settings.mergedKeys);
   const hash = createHash('sha1');
   for (const { sheet, mapping } of tabs) {
     const counts = new Map();
@@ -185,6 +192,7 @@ export async function syncEmailEvaluations({ force = true, log = console.log } =
       const n = (counts.get(base) || 0) + 1;
       counts.set(base, n);
       const key = n === 1 ? base : `${base}#${n}`;
+      if (merged.has(key)) continue;
       seen.add(key);
       rows.push({ key, tab: sheet.name, rowNumber: row.rowNumber, values });
       hash.update(`\n${key}\t${JSON.stringify(values)}`);

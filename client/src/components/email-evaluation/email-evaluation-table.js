@@ -1,7 +1,7 @@
 'use client';
 
 import { useContext, useState } from 'react';
-import { ChevronDown, ChevronUp, ChevronsUpDown, MoreHorizontal, Pencil, Send, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronsUpDown, Merge, MoreHorizontal, Pencil, Send, Trash2, TriangleAlert, Undo2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { formatDate, isoDate } from '@/lib/format';
@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmailEvaluationDialog } from '@/components/email-evaluation/email-evaluation-dialog';
-import { SelectionContext, doneToast, useLogSend, useRemoveRow, useTicked, useUndoSend, useUpdateRow } from '@/components/email-evaluation/use-email-evaluation';
+import { SelectionContext, doneToast, useLogSend, useMergeRows, useRemoveRow, useTicked, useUndoSend, useUpdateRow } from '@/components/email-evaluation/use-email-evaluation';
 
 const Dash = () => <span className="text-muted-foreground">—</span>;
 
@@ -227,8 +227,9 @@ function MailboxCell({ item }) {
 
 /** Edit all fields / delete, in a small menu at the end of the row. */
 function RowActions({ item, compact = false, tabs = [] }) {
-  const [dialog, setDialog] = useState(null); // 'edit' | 'delete'
+  const [dialog, setDialog] = useState(null); // 'edit' | 'delete' | 'merge'
   const remove = useRemoveRow();
+  const merge = useMergeRows();
   const ticked = useTicked(item._id);
   return (
     <>
@@ -253,6 +254,11 @@ function RowActions({ item, compact = false, tabs = [] }) {
             <DropdownMenuItem onSelect={() => setDialog('edit')}>
               <Pencil /> Edit all fields
             </DropdownMenuItem>
+            {ticked ? (
+              <DropdownMenuItem onSelect={() => setDialog('merge')}>
+                <Merge /> Merge {ticked} ticked rows into this one
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive" onSelect={() => setDialog('delete')}>
               <Trash2 /> {ticked ? `Delete all ${ticked} ticked rows` : 'Delete from the CRM'}
@@ -261,6 +267,22 @@ function RowActions({ item, compact = false, tabs = [] }) {
         </DropdownMenu>
       </div>
       {dialog === 'edit' ? <EmailEvaluationDialog key={`${item._id}-${item.updatedAt}`} item={item} tabs={tabs} open onOpenChange={(v) => !v && setDialog(null)} /> : null}
+      <ConfirmDialog
+        open={dialog === 'merge'}
+        onOpenChange={(v) => !v && setDialog(null)}
+        title={`Merge ${ticked} ticked rows into this one?`}
+        description={`"${item.clientName || item.primaryEmail || 'This row'}" is kept: its empty fields are filled from the other rows, their notes are added, and the longest follow-up history is kept. The other ${ticked - 1} are deleted, and the sheet's copies of them are not added back by the sync.`}
+        confirmLabel="Merge"
+        pending={merge.isPending}
+        onConfirm={() =>
+          merge.mutate(item._id, {
+            onSuccess: (r) => {
+              doneToast(r, 'Merged');
+              setDialog(null);
+            },
+          })
+        }
+      />
       <ConfirmDialog
         open={dialog === 'delete'}
         onOpenChange={(v) => !v && setDialog(null)}

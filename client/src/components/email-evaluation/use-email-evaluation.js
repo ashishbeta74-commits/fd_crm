@@ -79,6 +79,20 @@ export function useRemoveRow() {
   });
 }
 
+/** Merge the ticked rows into this one (id); the others are deleted and stay out of later syncs. */
+export function useMergeRows() {
+  const invalidate = useInvalidateEmailEvaluation();
+  const sel = useContext(SelectionContext);
+  return useMutation({
+    mutationFn: (id) => bulk(sel.ids, { action: 'merge', keep: id }),
+    onSuccess: () => {
+      sel?.clear();
+      invalidate();
+    },
+    onError: showError,
+  });
+}
+
 /** Log the next follow-up send ({ id, channel }) / take back the last one logged here (id). */
 export function useLogSend() {
   const invalidate = useInvalidateEmailEvaluation();

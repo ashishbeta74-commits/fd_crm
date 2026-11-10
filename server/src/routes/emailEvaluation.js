@@ -10,7 +10,7 @@ import { isoDate, parseDate, todayUtc } from '../lib/dates.js';
 import { escapeRegex } from '../lib/pool.js';
 import { EVAL_FIELDS, EmailEvaluation } from '../models/EmailEvaluation.js';
 import { autoSyncInfo } from '../services/sync.js';
-import { CHANNELS, MAX_SENDS, channelsFor, cleanEmail, cleanPhone, cleanText, followUpState, getSettings, mapHeaders, nextRowKey, setSheet, syncEmailEvaluations } from '../services/emailEvaluation.js';
+import { CHANNELS, MAX_SENDS, channelsFor, rememberMerged, cleanEmail, cleanPhone, cleanText, followUpState, getSettings, mapHeaders, nextRowKey, setSheet, syncEmailEvaluations } from '../services/emailEvaluation.js';
 import { appendSheetRow, readTabHeaders } from '../services/sheetAppend.js';
 
 export const emailEvaluationRouter = Router();
@@ -35,15 +35,29 @@ const listQuery = z.object({
   company: z.enum(['', 'missing']).default(''),
   // follow-up sends done, comma-separated counts ("4,5")
   sent: z.string().max(40).default(''),
+  // 'yes' = rows that share an email (or, with no email, a client name) with another row
+  dup: z.enum(['', 'yes']).default(''),
   sort: z.string().default('date'),
   dir: z.enum(['asc', 'desc']).optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().default(25),
 });
 
+/** The ids of rows that share their first email (or, with no email, their client name) with another row. */
+async function duplicateIds() {
+  const groups = await EmailEvaluation.aggregate([
+    { $project: { k: { $let: { vars: { e: { $toLower: { $trim: { input: '$primaryEmail' } } } }, in: { $cond: [{ $ne: ['$$e', ''] }, { $concat: ['e:', '$$e'] }, { $concat: ['n:', { $toLower: { $trim: { input: '$clientName' } } }] }] } } } } },
+    { $match: { k: { $nin: ['n:'] } } },
+    { $group: { _id: '$k', ids: { $push: '$_id' }, n: { $sum: 1 } } },
+    { $match: { n: { $gt: 1 } } },
+  ]);
+  return groups.flatMap((g) => g.ids);
+}
+
 /** The Mongo filter for the list / export query string. */
-function buildFilter(p) {
+async function buildFilter(p) {
   const and = [];
+  if (p.dup === 'yes') and.push({ _id: { $in: await duplicateIds() } });
   if (p.q) {
     const rx = new RegExp(escapeRegex(p.q), 'i');
     and.push({ $or: ['clientName', 'company', 'primaryEmail', 'secondaryEmail', 'phone', 'notes', 'status', 'followUp', 'followUpDate', 'evaluatedFor', 'dateLabel'].map((f) => ({ [f]: rx })) });
@@ -66,6 +80,8 @@ function buildFilter(p) {
 }
 
 function sortSpec(p) {
+  // Duplicates sit next to each other.
+  if (p.dup === 'yes') return { primaryEmail: 1, clientName: 1, date: 1, _id: 1 };
   const key = SORTS[p.sort] ? p.sort : 'date';
   const dir = p.dir ? (p.dir === 'asc' ? 1 : -1) : SORTS[key];
   return { [key]: dir, _id: -1 };
@@ -75,16 +91,10 @@ function sortSpec(p) {
 emailEvaluationRouter.get('/', async (req, res) => {
   const p = listQuery.parse(req.query);
   const limit = PAGE_SIZES.includes(p.limit) ? p.limit : 25;
-  const filter = buildFilter(p);
-  const [total, items] = await Promise.all([
-    EmailEvaluation.countDocuments(filter),
-    EmailEvaluation.find(filter)
-      .sort(sortSpec(p))
-      .skip((p.page - 1) * limit)
-      .limit(limit)
-      .select('-sheet')
-      .lean(),
-  ]);
+  const filter = await buildFilter(p);
+  const find = EmailEvaluation.find(filter).sort(sortSpec(p)).skip((p.page - 1) * limit).limit(limit).select('-sheet').lean();
+  if (p.dup) find.collation({ locale: 'en', strength: 2 }); // duplicates: X@y.com next to x@y.com
+  const [total, items] = await Promise.all([EmailEvaluation.countDocuments(filter), find]);
   res.json({ items, total, page: p.page, pages: Math.max(1, Math.ceil(total / limit)), limit });
 });
 
@@ -133,7 +143,7 @@ emailEvaluationRouter.get('/meta', async (req, res) => {
 // ---------- export ----------
 emailEvaluationRouter.get('/export', async (req, res) => {
   const p = listQuery.parse(req.query);
-  const items = await EmailEvaluation.find(buildFilter(p)).sort(sortSpec(p)).limit(20000).select('-sheet').lean();
+  const items = await EmailEvaluation.find(await buildFilter(p)).sort(sortSpec(p)).limit(20000).select('-sheet').lean();
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Email evaluation');
   ws.columns = [
@@ -320,14 +330,16 @@ emailEvaluationRouter.delete('/:id', async (req, res) => {
 // take the change (all 5 sent, nothing to undo, ...) are skipped: { done, skipped: [{ id, clientName, error }] }.
 const bulkInput = z.object({
   ids: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(1).max(500),
-  action: z.enum(['update', 'send', 'undo', 'delete']),
+  action: z.enum(['update', 'send', 'undo', 'delete', 'merge']),
+  keep: z.string().regex(/^[a-f\d]{24}$/i).optional(), // merge: the row the others are merged into
   data: z.record(z.unknown()).optional(),
   channel: z.string().optional(),
   date: z.string().optional(),
 });
 
 emailEvaluationRouter.post('/bulk', async (req, res) => {
-  const { ids, action, data, ...send } = bulkInput.parse(req.body);
+  const { ids, action, data, keep, ...send } = bulkInput.parse(req.body);
+  if (action === 'merge') return res.json(await mergeRows(ids, keep, who(req)));
   if (action === 'delete') {
     const r = await EmailEvaluation.deleteMany({ _id: { $in: ids } });
     return res.json({ done: r.deletedCount, skipped: [] });
@@ -353,6 +365,32 @@ emailEvaluationRouter.post('/bulk', async (req, res) => {
   }
   res.json({ done, skipped });
 });
+
+// ---------- merge duplicates ----------
+const MERGE_FIELDS = ['dateLabel', 'evaluatedFor', 'clientName', 'company', 'status', 'primaryEmail', 'secondaryEmail', 'phone', 'followUp', 'followUpDate'];
+
+/**
+ * Merge rows into one (`keep`, else the first id): its empty fields are filled from the others, notes are
+ * joined, the longest follow-up history wins. The others are deleted, and their sheet rows are skipped by
+ * later syncs so they do not come back.
+ */
+async function mergeRows(ids, keep, by) {
+  const docs = await EmailEvaluation.find({ _id: { $in: ids } });
+  if (docs.length < 2) throw new HttpError(400, 'Tick at least two rows to merge');
+  const keeper = docs.find((d) => String(d._id) === (keep || ids[0])) || docs[0];
+  const others = docs.filter((d) => d !== keeper);
+  for (const o of others) {
+    for (const f of MERGE_FIELDS) if (!keeper[f] && o[f]) keeper[f] = o[f];
+    if (!keeper.date && o.date) keeper.date = o.date;
+    if (o.notes && !keeper.notes.includes(o.notes)) keeper.notes = [keeper.notes, o.notes].filter(Boolean).join('\n');
+    if (o.sends.length > keeper.sends.length) keeper.sends = o.sends.map((x) => x.toObject());
+  }
+  Object.assign(keeper, followUpState(keeper), { editedAt: new Date(), updatedBy: by });
+  await keeper.save();
+  await rememberMerged(others.filter((o) => o.source === 'sheet').map((o) => o.key));
+  await EmailEvaluation.deleteMany({ _id: { $in: others.map((o) => o._id) } });
+  return { done: others.length, skipped: [], kept: String(keeper._id) };
+}
 
 // ---------- sheet ----------
 // Re-read the sheet now (always runs, even when nothing changed).
