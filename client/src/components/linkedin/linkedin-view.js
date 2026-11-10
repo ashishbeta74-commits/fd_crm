@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { BookOpen, CircleAlert, Linkedin, Loader2, SearchX, Users, X } from 'lucide-react';
+import { BookOpen, CircleAlert, ExternalLink, Linkedin, Loader2, SearchX, Users, X } from 'lucide-react';
 import { api, qk } from '@/lib/api';
 import { livePoll } from '@/lib/live';
 import { pluralize } from '@/lib/format';
@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContactsPagination } from '@/components/contacts/list/contacts-pagination';
 import { useSelection } from '@/components/contacts/list/use-selection';
+import { linkedInHref } from '@/components/contacts/list/linkedin-link';
 import { FILTER_KEYS, LinkedinToolbar, SORTS, useLinkedinParams } from '@/components/linkedin/linkedin-filters';
 import { LinkedinStats } from '@/components/linkedin/linkedin-stats';
 import { LinkedinCards, LinkedinTable } from '@/components/linkedin/linkedin-table';
@@ -38,8 +39,27 @@ export function LinkedinViewFallback() {
   );
 }
 
-/** Bulk bar for the selected prospects: log a step, park / close, set status. */
-function BulkBar({ ids, onDone }) {
+/**
+ * Open every selected prospect's LinkedIn profile in its own tab. Browsers let one click open one tab, so the
+ * rest need pop-ups allowed for this site (the address bar shows a "pop-ups blocked" icon the first time).
+ */
+function openProfiles(ids, profiles) {
+  const urls = ids.map((id) => profiles.get(id)).filter(Boolean);
+  const missing = ids.length - urls.length;
+  let opened = 0;
+  for (const url of urls) {
+    const w = window.open(url, '_blank'); // not 'noopener': it makes window.open return null, hiding a block
+    if (!w) break;
+    w.opener = null;
+    opened += 1;
+  }
+  if (!urls.length) return toast.error('None of the selected prospects has a LinkedIn profile URL');
+  if (opened < urls.length) toast.warning(`Opened ${opened} of ${urls.length} - the browser blocked the rest. Allow pop-ups for this site (icon at the right of the address bar), then click again.`, { duration: 10000 });
+  else toast.success(`Opened ${pluralize(opened, 'LinkedIn profile')}${missing ? ` - ${missing} had no profile URL` : ''}`);
+}
+
+/** Bulk bar for the selected prospects: open their profiles, log a step, park / close, set status. */
+function BulkBar({ ids, profiles, onDone }) {
   const bulk = useBulkLinkedin();
   const n = ids.length;
   const run = (body, describe) =>
@@ -55,6 +75,9 @@ function BulkBar({ ids, onDone }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-accent/60 px-3 py-2 text-sm" role="region" aria-label="Bulk actions">
       <span className="font-medium">{pluralize(n, 'prospect')} selected</span>
+      <Button size="sm" variant="outline" onClick={() => openProfiles(ids, profiles.current)}>
+        <ExternalLink /> Open {n === 1 ? 'LinkedIn profile' : `all ${n} LinkedIn profiles`}
+      </Button>
       <Select value="" onValueChange={(step) => run({ action: 'step', step }, (r) => `${LI_STEPS.find((s) => s.key === step)?.label} logged for ${pluralize(r.updated, 'prospect')}`)} disabled={bulk.isPending}>
         <SelectTrigger size="sm" className="w-48" aria-label="Log a step for the selected prospects">
           {bulk.isPending ? <Loader2 className="size-3.5 animate-spin" /> : null}
@@ -114,6 +137,11 @@ export function LinkedinView() {
   const selection = useSelection(FILTER_KEYS.map((k) => params[k]).join('|'));
   const [period, setPeriod] = useState(params.period || 'all');
   const items = data?.items ?? [];
+  // id -> profile URL of every prospect shown so far, so a selection made across pages can open them all.
+  const profiles = useRef(new Map());
+  useEffect(() => {
+    for (const c of data?.items ?? []) profiles.current.set(c._id, linkedInHref(c.contactL1));
+  }, [data]);
   const total = data?.total ?? 0;
   const onSort = (column) => setParams({ sort: column, dir: params.sort === column ? (params.dir === 'asc' ? 'desc' : 'asc') : SORTS[column] });
 
@@ -197,7 +225,7 @@ export function LinkedinView() {
               {isFetching && !isPending ? <Loader2 className="size-3 animate-spin" aria-hidden /> : null}
             </p>
           </div>
-          {selection.ids.length ? <BulkBar ids={selection.ids} onDone={selection.clear} /> : null}
+          {selection.ids.length ? <BulkBar ids={selection.ids} profiles={profiles} onDone={selection.clear} /> : null}
           {selection.ids.length > 1 ? <p className="-mt-3 text-xs text-muted-foreground">Any action on a ticked prospect (status, log / remove a step, clear, delete) goes to all {selection.ids.length} ticked ones.</p> : null}
           <LinkedinSelectionContext.Provider value={selection}>{content}</LinkedinSelectionContext.Provider>
         </>
