@@ -73,6 +73,8 @@ function buildFilter(ws, p, raw) {
     if (from || to) and.push({ [`values.${dateField}`]: { ...(from ? { $gte: from } : {}), ...(to ? { $lte: to } : {}) } });
   }
   if (p.missing === 'yes') and.push({ missingSince: { $ne: null } });
+  // expired rows (e.g. a price check whose ride date is before today in New York) are left out everywhere; rows with no date stay
+  if (ws.expireField) and.push({ [`values.${ws.expireField}`]: { $not: { $lt: parseDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })) } } });
   if (p.g && ws.groupBy) and.push({ [`values.${ws.groupBy.field}`]: p.g });
   return { $and: and };
 }

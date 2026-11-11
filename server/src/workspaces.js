@@ -258,6 +258,8 @@ WORKSPACES.push({
   statusField: 'followUp',
   valueField: 'paid',
   defaultSort: { field: 'checkDate', dir: 'desc' },
+  // once the ride date has passed (NY calendar day) the price check drops off the page
+  expireField: 'rideDate',
   fields: [
     { key: 'ref', label: 'Ref', headers: ['ref'], type: 'text', search: true, sort: true, width: 'w-28' },
     // set in the CRM; the import starts a price check at New (Booked when it was booked)
