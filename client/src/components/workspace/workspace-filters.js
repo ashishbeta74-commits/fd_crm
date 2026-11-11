@@ -159,7 +159,10 @@ export function WorkspaceToolbar({ workspace, meta, params, setParams, clearFilt
       <SearchInput value={params.q} onCommit={commitSearch} placeholder={searchFields.length ? `Search ${searchFields.slice(0, 4).join(', ')}…` : 'Search…'} />
       {filterFields.map((f) => {
         const inUse = meta?.filters?.[f.key] || [];
-        const options = inUse.map((o) => ({ key: o.value || 'none', label: o.value || 'Not set', count: o.count }));
+        // filter: 'has' - Has phone / No phone
+        const name = f.label.toLowerCase();
+        const label = (v) => (f.filter === 'has' ? (v === 'yes' ? `Has ${name}` : `No ${name}`) : v || 'Not set');
+        const options = inUse.map((o) => ({ key: o.value || 'none', label: label(o.value), count: o.count }));
         return <MultiFilter key={f.key} label={f.label} options={options} value={params[`f.${f.key}`] || ''} onChange={(v) => setParams({ [`f.${f.key}`]: v })} />;
       })}
       {tabOptions.length > 1 ? <MultiFilter label={ws?.tabLabel || 'Tab'} options={tabOptions} value={params.tab} onChange={(tab) => setParams({ tab })} /> : null}

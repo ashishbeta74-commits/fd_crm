@@ -241,7 +241,50 @@ WORKSPACES.push({
   ],
 });
 
-export const WORKSPACE_MAP = Object.fromEntries(WORKSPACES.map((w) => [w.key, w]));
+// ---- BMC price checks: BookMyCar website price checks ("BookMyCar price checks with phone <date>.csv" exports) ----
+// No linked sheet: rows come from the exports (server/scripts/import-price-checks.js), keyed by Ref.
+WORKSPACES.push({
+  key: 'pricechecks',
+  label: 'BMC Price Checks',
+  actionsFirst: true,
+  resizable: true,
+  activity: true,
+  nameFields: ['ref'],
+  description: 'Every price check on the BookMyCar website: who checked (phone / email), the trip, the prices shown, whether they booked, and where the follow-up stands.',
+  rowLabel: 'price check',
+  sheet: null,
+  keyField: 'ref',
+  dateField: 'checkDate',
+  statusField: 'followUp',
+  valueField: 'paid',
+  defaultSort: { field: 'checkDate', dir: 'desc' },
+  fields: [
+    { key: 'ref', label: 'Ref', headers: ['ref'], type: 'text', search: true, sort: true, width: 'w-28' },
+    // set in the CRM; the import starts a price check at New (Booked when it was booked)
+    { key: 'followUp', label: 'Follow-up', headers: ['followup'], type: 'enum', filter: true, sort: true, inline: true, options: ['New', 'Contacted', 'No answer', 'Not interested', 'Booked'], width: 'w-36' },
+    { key: 'checkDate', label: 'Checked on', headers: ['pricecheck', 'checkedon'], type: 'date', sort: true },
+    { key: 'checkTime', label: 'Time (NY)', headers: ['checktime'], type: 'text', width: 'w-20' },
+    { key: 'phone', label: 'Phone', headers: ['phone'], type: 'phone', filter: 'has', search: true, inline: true, width: 'w-40' },
+    { key: 'email', label: 'Email', headers: ['email'], type: 'email', filter: 'has', search: true, inline: true, width: 'w-56' },
+    { key: 'trip', label: 'Trip', headers: ['trip'], type: 'text', filter: true, width: 'w-24' },
+    { key: 'pickup', label: 'Pickup', headers: ['pickup'], type: 'text', search: true, width: 'w-64' },
+    { key: 'dropoff', label: 'Drop-off', headers: ['dropoff'], type: 'text', search: true, width: 'w-64' },
+    { key: 'rideDate', label: 'Ride date', headers: ['ridedate'], type: 'date', sort: true },
+    { key: 'rideTime', label: 'Ride time', headers: ['ridetime'], type: 'text', width: 'w-20' },
+    { key: 'returnDate', label: 'Return date', headers: ['returndate'], type: 'date', sort: true },
+    { key: 'carPicked', label: 'Car picked', headers: ['carpicked'], type: 'text', filter: true, width: 'w-32' },
+    { key: 'prices', label: 'Prices shown', headers: ['pricesshown'], type: 'text', search: true, width: 'w-72' },
+    { key: 'booked', label: 'Booked?', headers: ['booked'], type: 'enum', filter: true, sort: true, options: ['Yes', 'No'], width: 'w-20' },
+    { key: 'bookingNo', label: 'Booking no.', headers: ['bookingno'], type: 'text', search: true, width: 'w-28' },
+    { key: 'bookedAs', label: 'Booked as', headers: ['bookedas'], type: 'text', width: 'w-32' },
+    { key: 'bookedAt', label: 'Booked at (NY)', headers: ['bookedat'], type: 'text', width: 'w-36' },
+    { key: 'paid', label: 'Paid ($)', headers: ['paid'], type: 'number', sort: true, width: 'w-24' },
+    { key: 'bookingStatus', label: 'Booking status', headers: ['bookingstatus'], type: 'text', filter: true, width: 'w-32' },
+    { key: 'note', label: 'Note', headers: ['note', 'notes'], type: 'long', search: true, inline: true, width: 'w-72' },
+  ],
+});
+
+export const WORKSPACE_MAP =Object.fromEntries(WORKSPACES.map((w) => [w.key, w]));
 export const getWorkspace = (key) => WORKSPACE_MAP[key] || null;
 
 /** What the web app needs to render a workspace (everything but the sheet link, which the meta endpoint carries). */

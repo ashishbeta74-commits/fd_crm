@@ -57,6 +57,11 @@ function buildFilter(ws, p, raw) {
   }
   for (const f of ws.fields.filter((x) => x.filter)) {
     const vals = csv(raw[`f.${f.key}`]);
+    // filter: 'has' - "yes" = the field is filled in, "no" = it is empty (both = no filter)
+    if (f.filter === 'has') {
+      if (vals.length === 1) and.push({ [`values.${f.key}`]: vals[0] === 'yes' ? { $nin: ['', null] } : { $in: ['', null] } });
+      continue;
+    }
     if (vals.length) and.push({ [`values.${f.key}`]: { $in: vals.map((v) => (v === 'none' ? '' : v)).flatMap((v) => (v === '' ? ['', null] : [v])) } });
   }
   const tabs = csv(p.tab);
@@ -137,7 +142,10 @@ workspacesRouter.get('/:key/meta', async (req, res) => {
   const ws = req.ws;
   const filterFields = ws.fields.filter((f) => f.filter);
   const facets = { tabs: [{ $group: { _id: '$tab', count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }] };
-  for (const f of filterFields) facets[`f_${f.key}`] = [{ $group: { _id: { $ifNull: [`$values.${f.key}`, ''] }, count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }];
+  for (const f of filterFields) {
+    const by = f.filter === 'has' ? { $cond: [{ $in: [{ $ifNull: [`$values.${f.key}`, ''] }, ['']] }, 'no', 'yes'] } : { $ifNull: [`$values.${f.key}`, ''] };
+    facets[`f_${f.key}`] = [{ $group: { _id: by, count: { $sum: 1 } } }, { $sort: { count: -1, _id: 1 } }];
+  }
   if (ws.statusField) facets.status = [{ $group: { _id: { $ifNull: [`$values.${ws.statusField}`, ''] }, count: { $sum: 1 } } }];
   facets.counts = [
     {
