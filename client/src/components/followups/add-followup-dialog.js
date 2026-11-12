@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { StageBadge } from '@/components/badges';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { SendEmailDialog } from '@/components/email/send-email-dialog';
 import { useLogActivity, useRemoveLastFollowUp } from '@/hooks/use-contact-mutations';
 import { cn } from '@/lib/utils';
 
@@ -28,9 +29,12 @@ export function AddFollowUpDialog({ contact, open, onOpenChange, onSaved }) {
   const [channel, setChannel] = useState('call');
   const [next, setNext] = useState('');
   const [nextNote, setNextNote] = useState('');
+  // Email follow-ups go on to the email composer once the follow-up is saved.
+  const [emailing, setEmailing] = useState(false);
   const round = (contact?.followUpCount || 0) + 1;
 
   if (!contact) return null;
+  if (emailing) return <SendEmailDialog contact={contact} open={open} onOpenChange={onOpenChange} />;
 
   const submit = (e) => {
     e.preventDefault();
@@ -42,7 +46,8 @@ export function AddFollowUpDialog({ contact, open, onOpenChange, onSaved }) {
     }
     // Closed at once and saved behind it, like logging a call: the row already shows the result.
     const saving = log.mutateAsync({ id: contact._id, data });
-    onOpenChange(false);
+    if (channel === 'email') setEmailing(true);
+    else onOpenChange(false);
     const by = FOLLOW_UP_CHANNELS.find((c) => c.key === channel)?.label.toLowerCase();
     saving
       .then((doc) => {
@@ -115,7 +120,7 @@ export function AddFollowUpDialog({ contact, open, onOpenChange, onSaved }) {
             </Button>
             <Button type="submit" disabled={log.isPending} aria-busy={log.isPending || undefined}>
               {log.isPending ? <Loader2 className="animate-spin" aria-hidden="true" /> : <CalendarPlus aria-hidden="true" />}
-              {log.isPending ? 'Saving…' : 'Add follow-up'}
+              {log.isPending ? 'Saving…' : channel === 'email' ? 'Add follow-up & write email' : 'Add follow-up'}
             </Button>
           </DialogFooter>
         </form>
