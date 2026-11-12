@@ -5,17 +5,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 // `contactL1` is the contact's LinkedIn profile URL. Sheets often store it without a scheme
 // ("linkedin.com/in/jane" or "www.linkedin.com/in/jane"), so links are normalised here.
 
-/** Absolute href for a LinkedIn profile value (adds https:// when the scheme is missing). */
+/**
+ * Absolute href for a LinkedIn profile value: adds https:// when the scheme is missing, takes the URL out of
+ * Markdown links pasted from other tools ("[https://…](https://…)"), drops stray spaces inside a URL, and
+ * gives '' for plain text that is not a link.
+ */
 export function linkedInHref(value) {
-  const v = String(value || '').trim();
-  if (!v) return '';
-  return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  let v = String(value || '').trim();
+  v = v.match(/\]\((https?:\/\/[^)\s]+)\)/i)?.[1] || v;
+  if (/^https?:\/\//i.test(v)) return v.replace(/\s+/g, '');
+  return v && !/\s/.test(v) && v.includes('.') ? `https://${v}` : '';
 }
 
 /** Short display form: "linkedin.com/in/jane-doe" (drops the scheme, "www." and a trailing slash). */
 export function linkedInLabel(value) {
-  return String(value || '')
-    .trim()
+  return (linkedInHref(value) || String(value || '').trim())
     .replace(/^https?:\/\//i, '')
     .replace(/^www\./i, '')
     .replace(/\/+$/, '');
