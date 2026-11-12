@@ -158,8 +158,8 @@ function TagsField({ contact }) {
 function FollowUpField({ contact }) {
   const update = useUpdateContact();
   const [editing, setEditing] = useState(false);
-  const hasFollowUp = Boolean(contact.followUp);
-  const overdue = hasFollowUp && daysFromToday(contact.followUp) < 0;
+  const hasFollowUp = Boolean(contact.followUp || contact.followUpNote);
+  const overdue = Boolean(contact.followUp) && daysFromToday(contact.followUp) < 0;
 
   const save = (data, message) =>
     update.mutate(
@@ -178,14 +178,14 @@ function FollowUpField({ contact }) {
         contact={contact}
         pending={update.isPending}
         onCancel={() => setEditing(false)}
-        onSave={({ date, note }) => save({ followUp: date, followUpNote: note }, 'Follow-up updated')}
+        onSave={({ date, note }) => save({ followUp: date || null, followUpNote: note }, 'Follow-up updated')}
       />
     );
   }
 
   return (
     <div className="grid gap-1.5">
-      {hasFollowUp ? (
+      {contact.followUp ? (
         <>
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="font-medium">{formatDate(contact.followUp)}</span>
@@ -193,11 +193,11 @@ function FollowUpField({ contact }) {
               {relativeDay(contact.followUp)}
             </span>
           </div>
-          {contact.followUpNote ? <p className="text-muted-foreground">{contact.followUpNote}</p> : null}
         </>
       ) : (
-        <Muted>No follow-up scheduled</Muted>
+        <Muted>{contact.followUpNote ? 'No date set' : 'No follow-up scheduled'}</Muted>
       )}
+      {contact.followUpNote ? <p className="text-muted-foreground">{contact.followUpNote}</p> : null}
       <div className="flex flex-wrap items-center gap-2">
         <RoundSelect contact={contact} />
         <span className="text-xs text-muted-foreground">{contact.followUpCount ? `${pluralize(contact.followUpCount, 'follow-up')} done` : 'No follow-ups done yet'}</span>
@@ -241,9 +241,9 @@ function FollowUpEditor({ contact, pending, onSave, onCancel }) {
       <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)]">
         <div className="grid gap-1.5">
           <Label htmlFor="fu-date" className="text-xs text-muted-foreground">
-            Date
+            Date (optional)
           </Label>
-          <Input id="fu-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <Input id="fu-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
         <div className="grid gap-1.5">
           <Label htmlFor="fu-note" className="text-xs text-muted-foreground">
