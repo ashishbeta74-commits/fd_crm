@@ -241,6 +241,7 @@ export const api = {
   reminders: {
     list: (scope) => request(`/reminders${toQuery({ scope })}`),
     due: () => request('/reminders/due'),
+    areas: () => request('/reminders/areas'),
     create: (body) => request('/reminders', { method: 'POST', body }),
     update: (id, body) => request(`/reminders/${id}`, { method: 'PATCH', body }),
     snooze: (id, body) => request(`/reminders/${id}/snooze`, { method: 'POST', body }),
@@ -358,6 +359,7 @@ export const qk = {
   views: ['views'],
   reminders: ['reminders'],
   remindersDue: ['reminders', 'due'],
+  dueAreas: ['reminders', 'areas'],
   team: ['team'],
   mentions: ['mentions'],
   duplicates: (params) => ['duplicates', params || {}],

@@ -6,6 +6,7 @@ import { Contact } from '../models/Contact.js';
 import { Reminder } from '../models/Reminder.js';
 import { formatZoned } from '../config/timezone.js';
 import { currentUser } from '../lib/context.js';
+import { dueSummary } from '../services/due.js';
 
 export const remindersRouter = Router();
 
@@ -105,6 +106,11 @@ remindersRouter.get('/due', async (req, res) => {
   const byPriority = { urgent: 0, high: 0, medium: 0, low: 0, none: 0 };
   for (const r of items) if (new Date(r.at) < now) byPriority[r.priority || 'none'] += 1;
   res.json({ overdue, today: dueToday, byPriority, items: items.map((r) => ({ ...r, overdue: new Date(r.at) < now })), unnotified, now: now.toISOString() });
+});
+
+// What is due in every area of the CRM (contacts, Email Evaluation, violations, vehicles, ...), for the bell.
+remindersRouter.get('/areas', async (req, res) => {
+  res.json({ items: await dueSummary() });
 });
 
 // The browser showed a notification for these reminders; do not notify again.

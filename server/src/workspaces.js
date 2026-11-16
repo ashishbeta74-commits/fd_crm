@@ -257,22 +257,22 @@ WORKSPACES.push({
   dateField: 'checkDate',
   statusField: 'followUp',
   valueField: 'paid',
-  defaultSort: { field: 'checkDate', dir: 'desc' },
+  defaultSort: { field: 'checkDate', dir: 'desc', then: 'checkTime' }, // newest price check first
   // once the ride date has passed (NY calendar day) the price check drops off the page
   expireField: 'rideDate',
   fields: [
     { key: 'ref', label: 'Ref', headers: ['ref'], type: 'text', search: true, sort: true, width: 'w-28' },
     // set in the CRM; the import starts a price check at New (Booked when it was booked)
     { key: 'followUp', label: 'Follow-up', headers: ['followup'], type: 'enum', filter: true, sort: true, inline: true, options: ['New', 'Contacted', 'No answer', 'Not interested', 'Booked'], width: 'w-36' },
-    { key: 'checkDate', label: 'Checked on', headers: ['pricecheck', 'checkedon'], type: 'date', sort: true },
-    { key: 'checkTime', label: 'Time (NY)', headers: ['checktime'], type: 'text', width: 'w-20' },
+    { key: 'checkDate', label: 'Checked on', headers: ['pricecheck', 'pricecheckday', 'checkedon'], type: 'date', sort: true },
+    { key: 'checkTime', label: 'Time (NY)', headers: ['checktime', 'pricechecktime'], type: 'text', width: 'w-20' },
     { key: 'phone', label: 'Phone', headers: ['phone'], type: 'phone', filter: 'has', search: true, inline: true, width: 'w-40' },
     { key: 'email', label: 'Email', headers: ['email'], type: 'email', filter: 'has', search: true, inline: true, width: 'w-56' },
     { key: 'trip', label: 'Trip', headers: ['trip'], type: 'text', filter: true, width: 'w-24' },
     { key: 'pickup', label: 'Pickup', headers: ['pickup'], type: 'text', search: true, width: 'w-64' },
     { key: 'dropoff', label: 'Drop-off', headers: ['dropoff'], type: 'text', search: true, width: 'w-64' },
-    { key: 'rideDate', label: 'Ride date', headers: ['ridedate'], type: 'date', sort: true },
-    { key: 'rideTime', label: 'Ride time', headers: ['ridetime'], type: 'text', width: 'w-20' },
+    { key: 'rideDate', label: 'Ride date', headers: ['ridedate', 'traveldate'], type: 'date', sort: true },
+    { key: 'rideTime', label: 'Ride time', headers: ['ridetime', 'pickuptime'], type: 'text', width: 'w-20' },
     { key: 'returnDate', label: 'Return date', headers: ['returndate'], type: 'date', sort: true },
     { key: 'carPicked', label: 'Car picked', headers: ['carpicked'], type: 'text', filter: true, width: 'w-32' },
     { key: 'prices', label: 'Prices shown', headers: ['pricesshown'], type: 'text', search: true, width: 'w-72' },

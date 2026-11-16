@@ -87,7 +87,8 @@ function sortSpec(ws, p) {
   const path = key === 'updatedAt' || key === 'tab' ? key : `values.${key}`;
   // The workspace's own order (Sprinters, SUVs, sedans…) comes first when sorting by the ranked field.
   if (ws.rankBy && key === ws.rankBy.field) return { rank: dir, [path]: dir, _id: -1 };
-  return { [path]: dir, _id: -1 };
+  const then = key === ws.defaultSort?.field && ws.defaultSort.then ? { [`values.${ws.defaultSort.then}`]: dir } : {};
+  return { [path]: dir, ...then, _id: -1 };
 }
 
 const PUBLIC = '-sheet';

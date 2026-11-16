@@ -19,6 +19,7 @@ import { PriorityBadge } from '@/components/badges';
 import { ReminderActions } from '@/components/reminders/reminder-actions';
 
 const POLL_MS = 60_000;
+const DUE_SHOWN_KEY = 'crm.dueNotifiedOn';
 
 // The notification preference (localStorage) and the browser permission live outside React;
 // useSyncExternalStore reads them without a hydration mismatch (server snapshot = off / default).
@@ -52,6 +53,27 @@ export function ReminderBell({ className }) {
   const notify = useSyncExternalStore(subscribe, readPref, () => false);
   const permission = useSyncExternalStore(subscribe, readPermission, () => 'default');
   const shown = useRef(new Set());
+  // What is due in every area of the CRM (contact follow-ups, Email Evaluation, violations, vehicles, ...).
+  const { data: areaData } = useQuery({ queryKey: qk.dueAreas, queryFn: api.reminders.areas, refetchInterval: 5 * POLL_MS, refetchOnWindowFocus: true });
+  const areas = areaData?.items || [];
+
+  // One system notification a day (per browser) with what is due across the CRM, while the app is open.
+  useEffect(() => {
+    const list = areaData?.items || [];
+    if (!notify || permission !== 'granted' || !list.length) return;
+    const today = new Date().toLocaleDateString('en-CA');
+    try {
+      if (localStorage.getItem(DUE_SHOWN_KEY) === today) return;
+      localStorage.setItem(DUE_SHOWN_KEY, today);
+      const n = new Notification('Due today across the CRM', { body: list.map((a) => `${a.count} ${a.label}`).join('\n'), tag: `due-${today}` });
+      n.onclick = () => {
+        window.focus();
+        router.push(list[0].href);
+      };
+    } catch {
+      /* storage or notifications unavailable here */
+    }
+  }, [areaData, notify, permission, router]);
 
   // Fire system notifications for reminders that are due and have not been shown yet.
   useEffect(() => {
@@ -98,7 +120,7 @@ export function ReminderBell({ className }) {
   };
   const sendTest = () => api.push.test().then(() => toast.success('Test notification sent')).catch((err) => toast.error(err?.message || 'Could not send a test'));
 
-  const due = (data?.overdue || 0) + (data?.today || 0);
+  const due = (data?.overdue || 0) + (data?.today || 0) + areas.reduce((sum, a) => sum + a.count, 0);
   const items = data?.items || [];
   const Icon = data?.overdue ? BellRing : Bell;
   const supported = typeof window !== 'undefined' && typeof Notification !== 'undefined';
@@ -133,6 +155,21 @@ export function ReminderBell({ className }) {
             <Link href="/follow-ups">All follow-ups</Link>
           </Button>
         </div>
+        {areas.length ? (
+          <div className="border-b px-3 py-2">
+            <p className="mb-1 text-xs font-medium text-muted-foreground">Due across the CRM</p>
+            <ul className="grid gap-0.5">
+              {areas.map((a) => (
+                <li key={a.key}>
+                  <Link href={a.href} className="flex items-center gap-2 rounded-sm px-1 py-1 text-sm hover:bg-accent">
+                    <span className="min-w-8 rounded-full bg-primary/10 px-1.5 text-center text-xs font-semibold text-primary tabular-nums">{a.count}</span>
+                    <span className="min-w-0 truncate">{a.label}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <ScrollArea className="max-h-80">
           {items.length ? (
             <ul className="divide-y">
@@ -168,7 +205,7 @@ export function ReminderBell({ className }) {
           </div>
           {notify && permission === 'granted' ? (
             <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-              <span>Reminders as they come due, plus a morning summary. Works with the app closed.</span>
+              <span>Reminders as they come due, plus a morning summary of everything due across the CRM. Works with the app closed.</span>
               <button type="button" onClick={sendTest} className="shrink-0 underline-offset-2 hover:underline">
                 Send test
               </button>

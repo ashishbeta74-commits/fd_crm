@@ -6,6 +6,7 @@ import { Setting } from '../models/User.js';
 import { formatZoned } from '../config/timezone.js';
 import { todayUtc, addDays } from '../lib/dates.js';
 import { priorityLabel } from '../fields.js';
+import { dueSummary } from './due.js';
 
 const log = (...a) => console.log(...a);
 const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -94,14 +95,10 @@ export async function pushDailyDigest() {
   if (last?.value === stamp) return 0;
   await Setting.findOneAndUpdate({ key: 'push.lastDigest' }, { $set: { value: stamp } }, { upsert: true });
   const tomorrow = addDays(today, 1);
-  const [dueToday, overdue, reminders] = await Promise.all([
-    Contact.countDocuments({ followUp: { $gte: today, $lt: tomorrow } }),
-    Contact.countDocuments({ followUp: { $lt: today } }),
-    Reminder.countDocuments({ done: false, at: { $lt: tomorrow } }),
-  ]);
-  if (!dueToday && !overdue && !reminders) return 0;
-  const parts = [`${dueToday} follow-up${dueToday === 1 ? '' : 's'} due today`];
-  if (overdue) parts.push(`${overdue} overdue`);
+  const [areas, reminders] = await Promise.all([dueSummary(), Reminder.countDocuments({ done: false, at: { $lt: tomorrow } })]);
+  if (!areas.length && !reminders) return 0;
+  // "57 Contact follow-ups due · 177 Email Evaluation follow-ups due · 5 Vehicles with ... · 2 reminders"
+  const parts = areas.map((a) => `${a.count} ${a.label}`);
   if (reminders) parts.push(`${reminders} reminder${reminders === 1 ? '' : 's'}`);
   return sendToAll({ title: 'Your day at Famous Drive', body: parts.join(' · '), url: `${APP_URL}/follow-ups`, tag: `digest-${stamp}` });
 }

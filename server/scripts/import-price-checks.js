@@ -55,9 +55,9 @@ for (const file of files) {
     const values = Object.fromEntries(headers.map((h, j) => [h, cells[j] ?? '']));
     const text = rowText(ws, { values }, mapping);
     if (!text.ref) return;
-    // "2026-10-29 10:45": the date goes to Checked on, the time to Time (NY)
+    // "2026-10-29 10:45" (or a separate "Price check time" column): the date goes to Checked on, the time to Time (NY)
     const checked = values[headers.find((h) => mapping[h] === 'checkDate')] || '';
-    text.checkTime = checked.split(' ')[1] || '';
+    text.checkTime = (text.checkTime || checked).match(/\d{1,2}:\d{2}/)?.[0] || '';
     text.followUp = /^yes$/i.test(text.booked) ? 'Booked' : 'New';
     rows.push({ key: text.ref.toLowerCase(), rowNumber: i + 2, text });
   });
