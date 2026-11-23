@@ -277,6 +277,7 @@ function TeamTable({ team, selectedId, onPick }) {
     ['Emails', (p) => p.emails],
     ['Reach-out', (p) => p.workspaces?.reachout?.total || 0],
     ['Reservations', (p) => p.workspaces?.reservations?.total || 0],
+    ['Price checks', (p) => p.workspaces?.pricechecks?.total || 0],
   ];
   return (
     <SectionCard title="Team">
@@ -315,18 +316,25 @@ function TeamTable({ team, selectedId, onPick }) {
   );
 }
 
-// ---------- Client Reach Out & Reservations: status changes made on those pages (not contacts) ----------
+// ---------- Client Reach Out, Reservations & BMC Price Checks: status changes made on those pages (not contacts) ----------
 
-const WS_PAGES = { reachout: { label: 'Client Reach Out', href: '/reach-out' }, reservations: { label: 'Reservations', href: '/reservations' } };
+// every workspace with `activity: true` in server/src/workspaces.js
+const WS_PAGES = {
+  reachout: { label: 'Client Reach Out', href: '/reach-out' },
+  reservations: { label: 'Reservations', href: '/reservations' },
+  pricechecks: { label: 'BMC Price Checks', href: '/price-checks' },
+};
 const NONE = { total: 0, byStatus: {}, byType: {} };
 
 function WorkspaceActivity({ counts = {}, feed = [] }) {
   const reach = counts.reachout || NONE;
   const trips = counts.reservations || NONE;
+  const checks = counts.pricechecks || NONE;
+  const withStatuses = Object.keys(WS_PAGES).map((key) => [key, counts[key] || NONE]).filter(([, w]) => Object.keys(w.byStatus).length);
   return (
     <section className="space-y-4" aria-labelledby="ws-activity">
       <h2 id="ws-activity" className="text-base font-semibold">
-        Client Reach Out &amp; Reservations
+        Client Reach Out, Reservations &amp; BMC Price Checks
       </h2>
       <div className={TILE_GRID}>
         <StatTile label="Reach-out updates" value={reach.total} icon={ListChecks} accent="green" caption="status / type changes on Client Reach Out" />
@@ -334,18 +342,14 @@ function WorkspaceActivity({ counts = {}, feed = [] }) {
         <StatTile label="By email" value={reach.byType.Email || 0} icon={Mail} accent="pink" caption="clients reached by email" />
         <StatTile label="By text" value={reach.byType.Text || 0} icon={MessageSquare} accent="violet" caption="clients reached by text" />
         <StatTile label="Reservation updates" value={trips.total} icon={CalendarCheck} accent="amber" caption="status changes on Reservations" />
+        <StatTile label="Price check updates" value={checks.total} icon={PhoneCall} accent="slate" caption={`follow-up changes on ${formatCount(checks.rows || 0)} BMC price checks`} />
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
         <WorkspaceFeed feed={feed} className="xl:col-span-3" />
         <SectionCard title="Statuses set" className="xl:col-span-2">
-          {Object.keys(reach.byStatus).length || Object.keys(trips.byStatus).length ? (
+          {withStatuses.length ? (
             <div className="grid gap-5">
-              {[
-                ['reachout', reach],
-                ['reservations', trips],
-              ]
-                .filter(([, w]) => Object.keys(w.byStatus).length)
-                .map(([key, w]) => {
+              {withStatuses.map(([key, w]) => {
                   const rows = Object.entries(w.byStatus).sort((a, b) => b[1] - a[1]);
                   const max = Math.max(1, ...rows.map((r) => r[1]));
                   return (
