@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import { mapHeaders, rowText, typedValues } from '../src/services/workspaces.js';
 import { getWorkspace } from '../src/workspaces.js';
 import { SheetRow } from '../src/models/SheetRow.js';
+import { mergePromoRows } from './promo.js';
 
 const args = process.argv.slice(2);
 const dry = args.includes('--dry');
@@ -44,6 +45,8 @@ function parseCsv(text) {
 
 await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
 const edited = new Set((await SheetRow.find({ workspace: ws.key, editedAt: { $ne: null } }).select('key').lean()).map((d) => d.key));
+// the export has no promo column: a price check keeps the promo code merged into it (promo.js)
+const promos = new Map((await SheetRow.find({ workspace: ws.key, 'values.promo': { $nin: ['', null] } }).select('key values.promo').lean()).map((d) => [d.key, d.values.promo]));
 const now = new Date();
 let total = 0;
 for (const file of files) {
@@ -59,6 +62,7 @@ for (const file of files) {
     const checked = values[headers.find((h) => mapping[h] === 'checkDate')] || '';
     text.checkTime = (text.checkTime || checked).match(/\d{1,2}:\d{2}/)?.[0] || '';
     text.followUp = /^yes$/i.test(text.booked) ? 'Booked' : 'New';
+    text.promo = promos.get(text.ref.toLowerCase()) || '';
     rows.push({ key: text.ref.toLowerCase(), rowNumber: i + 2, text });
   });
   const fresh = rows.filter((r) => !edited.has(r.key));
@@ -81,4 +85,6 @@ for (const file of files) {
   }
 }
 console.log(`${total} price checks${dry ? ' (dry run, nothing written)' : ''}`);
+console.log('promo claimers whose price check is now here:');
+console.log(`${await mergePromoRows(ws, { dry })} promo claims merged into their price checks`);
 await mongoose.disconnect();

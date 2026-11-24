@@ -264,6 +264,8 @@ WORKSPACES.push({
     { key: 'ref', label: 'Ref', headers: ['ref'], type: 'text', search: true, sort: true, width: 'w-28' },
     // set in the CRM; the import starts a price check at New (Booked when it was booked)
     { key: 'followUp', label: 'Follow-up', headers: ['followup'], type: 'enum', filter: true, sort: true, inline: true, options: ['New', 'Contacted', 'No answer', 'Not interested', 'Booked'], width: 'w-36' },
+    // the BookMyCar promo code this person claimed (scripts/import-promo-claims.js); empty = not from a promo
+    { key: 'promo', label: 'Promo code', headers: ['promocode'], type: 'text', filter: 'has', search: true, width: 'w-32' },
     { key: 'checkDate', label: 'Checked on', headers: ['pricecheck', 'pricecheckday', 'checkedon'], type: 'date', sort: true },
     { key: 'checkTime', label: 'Time (NY)', headers: ['checktime', 'pricechecktime'], type: 'text', width: 'w-20' },
     { key: 'phone', label: 'Phone', headers: ['phone'], type: 'phone', filter: 'has', search: true, inline: true, width: 'w-40' },
