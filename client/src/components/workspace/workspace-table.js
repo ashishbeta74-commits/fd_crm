@@ -133,7 +133,7 @@ function EditableCell({ workspace: ws, item, field, options }) {
     return field.type === 'long' ? (
       <textarea value={text} onChange={(e) => setText(e.target.value)} onBlur={() => save(text)} onKeyDown={onKeyDown} rows={3} autoFocus className="w-full min-w-64 rounded-md border bg-background px-2 py-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50" aria-label={`Edit ${field.label}`} />
     ) : (
-      <Input type={isDate ? 'date' : field.type === 'number' ? 'number' : 'text'} step={field.type === 'number' ? 'any' : undefined} value={text} onChange={(e) => setText(e.target.value)} onBlur={() => save(text)} onKeyDown={onKeyDown} autoFocus className="h-8 min-w-36" aria-label={`Edit ${field.label}`} />
+      <Input type={isDate ? 'date' : field.type === 'number' ? 'number' : 'text'} step={field.type === 'number' ? 'any' : undefined} value={text} onChange={(e) => setText(e.target.value)} onBlur={() => save(text)} onKeyDown={onKeyDown} autoFocus placeholder={field.placeholder} className="h-8 min-w-36" aria-label={`Edit ${field.label}`} />
     );
   }
   return (

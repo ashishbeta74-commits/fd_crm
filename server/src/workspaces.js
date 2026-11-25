@@ -266,8 +266,9 @@ WORKSPACES.push({
     { key: 'followUp', label: 'Follow-up', headers: ['followup'], type: 'enum', filter: true, sort: true, inline: true, options: ['New', 'Contacted', 'No answer', 'Not interested', 'Booked'], width: 'w-36' },
     // the BookMyCar promo code this person claimed (scripts/import-promo-claims.js); empty = not from a promo
     { key: 'promo', label: 'Promo code', headers: ['promocode'], type: 'text', filter: 'has', search: true, width: 'w-32' },
-    // set in the CRM: the discount the team offers this person (picking one marks the row edited, so imports leave it alone)
-    { key: 'discount', label: 'Discount', headers: ['discount'], type: 'enum', filter: true, sort: true, inline: true, options: ['5%', '10%', '15%', '20%'], width: 'w-28' },
+    // set in the CRM: the discount the team offers this person, typed as a percent or an amount ("10%", "$25");
+    // setting it marks the row edited, so imports leave it alone
+    { key: 'discount', label: 'Discount', headers: ['discount'], type: 'text', filter: true, sort: true, inline: true, placeholder: '10% or $25', width: 'w-28' },
     { key: 'checkDate', label: 'Checked on', headers: ['pricecheck', 'pricecheckday', 'checkedon'], type: 'date', sort: true },
     { key: 'checkTime', label: 'Time (NY)', headers: ['checktime', 'pricechecktime'], type: 'text', width: 'w-20' },
     { key: 'phone', label: 'Phone', headers: ['phone'], type: 'phone', filter: 'has', search: true, inline: true, width: 'w-40' },
