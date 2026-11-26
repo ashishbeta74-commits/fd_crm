@@ -5,7 +5,7 @@
 // Usage (from server/):  node --env-file=.env scripts/import-promo-claims.js <older.csv> [newer.csv ...] [--dry]
 import fs from 'node:fs';
 import mongoose from 'mongoose';
-import { typedValues } from '../src/services/workspaces.js';
+import { getSettings, typedValues } from '../src/services/workspaces.js';
 import { getWorkspace } from '../src/workspaces.js';
 import { SheetRow } from '../src/models/SheetRow.js';
 import { mergePromoRows } from './promo.js';
@@ -92,7 +92,9 @@ console.log(`${claims.size} different claims`);
 await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 10000 });
 const edited = new Set((await SheetRow.find({ workspace: ws.key, key: { $in: [...claims.keys()] }, editedAt: { $ne: null } }).select('key').lean()).map((d) => d.key));
 const now = new Date();
-const fresh = [...claims].filter(([key]) => !edited.has(key));
+const deleted = new Set((await getSettings(ws)).deletedKeys);
+for (const key of claims.keys()) if (deleted.has(key)) console.log(`  ${key.toUpperCase()}: deleted in the CRM, skipped`);
+const fresh = [...claims].filter(([key]) => !edited.has(key) && !deleted.has(key));
 if (edited.size) console.log(`${edited.size} claim rows already worked in the CRM, kept`);
 if (!dry && fresh.length) {
   const res = await SheetRow.bulkWrite(

@@ -4,7 +4,7 @@
 // Usage (from server/):  node --env-file=.env scripts/import-price-checks.js <file.csv> [more.csv ...] [--dry]
 import fs from 'node:fs';
 import mongoose from 'mongoose';
-import { mapHeaders, rowText, typedValues } from '../src/services/workspaces.js';
+import { getSettings, mapHeaders, rowText, typedValues } from '../src/services/workspaces.js';
 import { getWorkspace } from '../src/workspaces.js';
 import { SheetRow } from '../src/models/SheetRow.js';
 import { mergePromoRows } from './promo.js';
@@ -47,6 +47,7 @@ await mongoose.connect(process.env.MONGODB_URI, { serverSelectionTimeoutMS: 1000
 const edited = new Set((await SheetRow.find({ workspace: ws.key, editedAt: { $ne: null } }).select('key').lean()).map((d) => d.key));
 // the export has no promo column: a price check keeps the promo code merged into it (promo.js)
 const promos = new Map((await SheetRow.find({ workspace: ws.key, 'values.promo': { $nin: ['', null] } }).select('key values.promo').lean()).map((d) => [d.key, d.values.promo]));
+const deleted = new Set((await getSettings(ws)).deletedKeys);
 const now = new Date();
 let total = 0;
 for (const file of files) {
@@ -58,6 +59,7 @@ for (const file of files) {
     const values = Object.fromEntries(headers.map((h, j) => [h, cells[j] ?? '']));
     const text = rowText(ws, { values }, mapping);
     if (!text.ref) return;
+    if (deleted.has(text.ref.toLowerCase())) return console.log(`  ${text.ref}: deleted in the CRM, skipped`);
     // "2026-10-29 10:45" (or a separate "Price check time" column): the date goes to Checked on, the time to Time (NY)
     const checked = values[headers.find((h) => mapping[h] === 'checkDate')] || '';
     text.checkTime = (text.checkTime || checked).match(/\d{1,2}:\d{2}/)?.[0] || '';

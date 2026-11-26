@@ -260,6 +260,8 @@ WORKSPACES.push({
   defaultSort: { field: 'checkDate', dir: 'desc', then: 'checkTime' }, // newest price check first
   // once the ride date has passed (NY calendar day) the price check drops off the page
   expireField: 'rideDate',
+  // a price check deleted on the page stays deleted: the import scripts skip its Ref
+  keepDeleted: true,
   fields: [
     { key: 'ref', label: 'Ref', headers: ['ref'], type: 'text', search: true, sort: true, width: 'w-28' },
     // set in the CRM; the import starts a price check at New (Booked when it was booked)
