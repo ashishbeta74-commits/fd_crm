@@ -318,6 +318,7 @@ export const api = {
     meta: (key) => request(`/workspaces/${key}/meta`),
     rows: (key, params) => request(`/workspaces/${key}${toQuery(params)}`),
     groups: (key, params) => request(`/workspaces/${key}/groups${toQuery(params)}`),
+    insights: (key) => request(`/workspaces/${key}/insights`),
     create: (key, body) => request(`/workspaces/${key}`, { method: 'POST', body }),
     update: (key, id, body) => request(`/workspaces/${key}/${id}`, { method: 'PATCH', body }),
     remove: (key, id) => request(`/workspaces/${key}/${id}`, { method: 'DELETE' }),

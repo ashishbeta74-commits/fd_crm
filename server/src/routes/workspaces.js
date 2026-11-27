@@ -13,6 +13,7 @@ import { WORKSPACES, getWorkspace, publicWorkspace, rankOf } from '../workspaces
 import { autoSyncInfo } from '../services/sync.js';
 import { cleanCell, getSettings, mapHeaders, nextAutoId, nextRowKey, rememberDeleted, setSheet, syncWorkspace, typedValue } from '../services/workspaces.js';
 import { appendSheetRow, readTabHeaders } from '../services/sheetAppend.js';
+import { priceCheckInsights } from '../services/priceCheckInsights.js';
 
 export const workspacesRouter = Router();
 
@@ -175,6 +176,12 @@ workspacesRouter.get('/:key/meta', async (req, res) => {
     sheet: settings,
     autoSync: autoSyncInfo(),
   });
+});
+
+// BMC Price Checks charts (the page's Charts panel)
+workspacesRouter.get('/:key/insights', async (req, res) => {
+  if (req.ws.key !== 'pricechecks') throw new HttpError(404, `${req.ws.label} has no charts`);
+  res.json(priceCheckInsights(await SheetRow.find({ workspace: req.ws.key }).select('values').lean()));
 });
 
 // ---------- export ----------

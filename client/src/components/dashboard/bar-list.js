@@ -33,10 +33,12 @@ export function BarList({ rows, total, fill = 'bg-primary/70' }) {
         const count = row.count || 0;
         const pct = max ? Math.round((count / max) * 100) : 0;
         const share = total ? Math.round((count / total) * 100) : 0;
+        // no href: a plain row (no hover, not a link)
+        const Row = row.href ? Link : 'div';
         const link = (
-          <Link
-            href={row.href}
-            className="group -mx-2 flex flex-col gap-1.5 rounded-md px-2 py-1.5 transition-colors duration-200 hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          <Row
+            {...(row.href ? { href: row.href } : {})}
+            className={cn('group -mx-2 flex flex-col gap-1.5 rounded-md px-2 py-1.5', row.href && 'transition-colors duration-200 hover:bg-accent focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50')}
           >
             <span className="flex items-center gap-2 text-sm">
               {row.dot ? <span className={cn('size-2 shrink-0 rounded-full', row.dot)} aria-hidden="true" /> : null}
@@ -53,7 +55,7 @@ export function BarList({ rows, total, fill = 'bg-primary/70' }) {
                 style={{ width: `${grown ? pct : 0}%` }}
               />
             </span>
-          </Link>
+          </Row>
         );
         if (!row.hint && !total) return <li key={row.key}>{link}</li>;
         return (
